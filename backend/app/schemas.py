@@ -174,3 +174,14 @@ class MultimodalConnectivityResponse(BaseModel):
     first_mile_distance_meters: Optional[float] = None
     last_mile_hub: Optional[TransitHubResponse] = None
     last_mile_distance_meters: Optional[float] = None
+
+class WeatherMetrics(BaseModel):
+    temperature_celsius: float
+    precipitation_mm: float
+    wind_speed_kmh: float
+    condition_text: str
+
+class WeatherAdvisoryResponse(BaseModel):
+    metrics: WeatherMetrics
+    advisory_message: str
+    is_adverse: bool
