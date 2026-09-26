@@ -36,6 +36,10 @@ class HazardStatus(enum.Enum):
     VERIFIED = "VERIFIED"
     RESOLVED = "RESOLVED"
 
+class TransitHubType(enum.Enum):
+    BUS_TERMINAL = "BUS_TERMINAL"
+    RAILWAY_STATION = "RAILWAY_STATION"
+
 class EmergencyFacility(Base):
     __tablename__ = "emergency_facilities"
 
@@ -87,6 +91,23 @@ class RoadHazard(Base):
     source_url = Column(String, nullable=True)
     last_verified = Column(DateTime, nullable=False)
     data_type = Column(Enum(DataSourceType), nullable=False, default=DataSourceType.USER_REPORTED)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class TransitHub(Base):
+    __tablename__ = "transit_hubs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    hub_type = Column(Enum(TransitHubType), nullable=False, index=True)
+    geom = Column(Geometry('POINT', srid=4326, spatial_index=True), nullable=False)
+    
+    # Provenance fields
+    source = Column(String, nullable=False)
+    source_url = Column(String, nullable=True)
+    last_verified = Column(DateTime, nullable=False)
+    data_type = Column(Enum(DataSourceType), nullable=False, default=DataSourceType.OFFICIAL)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

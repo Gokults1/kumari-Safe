@@ -75,7 +75,7 @@ def compute_route_safety_context(db: Session, route_coordinates: List[List[float
         hazard_dist_col
     ).filter(
         func.ST_DWithin(hazard_geom, route_geom, corridor_radius_meters),
-        RoadHazard.status != HazardStatus.RESOLVED
+        RoadHazard.status == HazardStatus.VERIFIED
     ).order_by(hazard_dist_col).all()
     
     hazards_list = []

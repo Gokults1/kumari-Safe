@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
-from app.models import FacilityType, DataSourceType, HazardType, HazardStatus
+from app.models import FacilityType, DataSourceType, HazardType, HazardStatus, TransitHubType
 
 class HealthCheck(BaseModel):
     status: str
@@ -130,3 +130,47 @@ class RouteTrackingResponse(BaseModel):
     distance_to_next_maneuver_meters: float
     has_arrived: bool
     reroute_needed: bool
+
+class HazardReportCreate(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    hazard_type: HazardType
+    description: str
+
+class HazardReportResponse(BaseModel):
+    id: int
+    hazard_type: HazardType
+    description: str
+    status: HazardStatus
+    source: str
+    source_url: Optional[str] = None
+    last_verified: Optional[datetime] = None
+    data_type: DataSourceType
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class TransitHubResponse(BaseModel):
+    id: int
+    name: str
+    hub_type: TransitHubType
+    latitude: float
+    longitude: float
+    distance_meters: float
+    source: str
+    source_url: Optional[str] = None
+    last_verified: datetime
+    data_type: DataSourceType
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class MultimodalConnectivityResponse(BaseModel):
+    first_mile_hub: Optional[TransitHubResponse] = None
+    first_mile_distance_meters: Optional[float] = None
+    last_mile_hub: Optional[TransitHubResponse] = None
+    last_mile_distance_meters: Optional[float] = None
