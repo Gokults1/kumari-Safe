@@ -1,0 +1,132 @@
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
+from datetime import datetime
+from app.models import FacilityType, DataSourceType, HazardType, HazardStatus
+
+class HealthCheck(BaseModel):
+    status: str
+    message: str
+
+class EmergencyFacilityBase(BaseModel):
+    name: str
+    facility_type: FacilityType
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    source: str
+    source_url: Optional[str] = None
+    last_verified: datetime
+    data_type: DataSourceType = DataSourceType.OFFICIAL
+
+class EmergencyFacilityCreate(EmergencyFacilityBase):
+    pass
+
+class EmergencyFacilityResponse(EmergencyFacilityBase):
+    id: int
+    distance_meters: Optional[float] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class NearestFacilitySummary(BaseModel):
+    facility: EmergencyFacilityResponse
+    distance_km: float
+
+class HelplineContact(BaseModel):
+    name: str
+    phone: str
+    description: Optional[str] = None
+
+class EmergencyAssistResponse(BaseModel):
+    closest_facilities: dict[FacilityType, Optional[NearestFacilitySummary]]
+    district_helplines: list[HelplineContact]
+
+class RoadHazardSummary(BaseModel):
+    id: int
+    hazard_type: HazardType
+    description: str
+    status: HazardStatus
+    latitude: float
+    longitude: float
+    distance_meters: float
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class RouteSafetySummary(BaseModel):
+    corridor_radius_meters: float
+    police_stations_count: int
+    hospitals_count: int
+    fire_stations_count: int
+    cctv_count: int = 0
+    road_hazards_count: int = 0
+    facilities_within_corridor: list[NearestFacilitySummary]
+    hazards: list[RoadHazardSummary] = []
+    context_description: str
+
+class RouteRequest(BaseModel):
+    origin_lat: float = Field(..., ge=-90, le=90)
+    origin_lon: float = Field(..., ge=-180, le=180)
+    dest_lat: float = Field(..., ge=-90, le=90)
+    dest_lon: float = Field(..., ge=-180, le=180)
+    profile: str = Field(default="walking", pattern="^(driving|walking)$")
+    include_safety_context: bool = True
+    corridor_radius_meters: float = 500.0
+
+class RouteResponse(BaseModel):
+    profile: str
+    distance_meters: float
+    distance_km: float
+    duration_seconds: float
+    duration_minutes: float
+    coordinates: list[list[float]] # [ [lon, lat], ... ]
+    safety_context: Optional[RouteSafetySummary] = None
+
+class NavigationStep(BaseModel):
+    instruction: str
+    maneuver_type: str
+    modifier: Optional[str] = None
+    street_name: Optional[str] = None
+    distance_meters: float
+    duration_seconds: float
+    location: list[float]
+
+class CandidateRoute(BaseModel):
+    route_id: str
+    label: str
+    distance_meters: float
+    distance_km: float
+    duration_seconds: float
+    duration_minutes: float
+    coordinates: list[list[float]]
+    steps: list[NavigationStep]
+    safety_context: Optional[RouteSafetySummary] = None
+
+class MultiRouteResponse(BaseModel):
+    origin: list[float]
+    destination: list[float]
+    routes: list[CandidateRoute]
+    recommended_route_id: Optional[str] = None
+    recommendation_reason: Optional[str] = None
+
+class RouteTrackingRequest(BaseModel):
+    current_location: list[float]
+    heading_degrees: Optional[float] = None
+    speed_mps: Optional[float] = None
+    active_route_coordinates: list[list[float]]
+    steps: list[NavigationStep]
+    current_step_index: int = 0
+
+class RouteTrackingResponse(BaseModel):
+    is_off_route: bool
+    distance_to_route_meters: float
+    current_step_index: int
+    current_instruction: str
+    distance_to_next_maneuver_meters: float
+    has_arrived: bool
+    reroute_needed: bool

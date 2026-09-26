@@ -1,0 +1,8 @@
+fastapi[all]
+sqlalchemy
+psycopg2-binary
+geoalchemy2
+alembic
+pytest
+httpx
+pydantic-settings
