@@ -2,6 +2,12 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from app.models import FacilityType, DataSourceType, HazardType, HazardStatus, TransitHubType
+from enum import Enum
+
+class RoutePreference(str, Enum):
+    FASTEST = "FASTEST"
+    SAFEST = "SAFEST"
+    BALANCED = "BALANCED"
 
 class HealthCheck(BaseModel):
     status: str
@@ -77,6 +83,8 @@ class RouteRequest(BaseModel):
     profile: str = Field(default="walking", pattern="^(driving|walking)$")
     include_safety_context: bool = True
     corridor_radius_meters: float = 500.0
+    preference: RoutePreference = RoutePreference.BALANCED
+
 
 class RouteResponse(BaseModel):
     profile: str
@@ -106,6 +114,7 @@ class CandidateRoute(BaseModel):
     coordinates: list[list[float]]
     steps: list[NavigationStep]
     safety_context: Optional[RouteSafetySummary] = None
+    score: float = 0.0
 
 class MultiRouteResponse(BaseModel):
     origin: list[float]

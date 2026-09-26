@@ -2,8 +2,8 @@ import httpx
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.config import settings
-from app.schemas import RouteResponse, MultiRouteResponse, CandidateRoute, NavigationStep
-from app.services import safety_service
+from app.schemas import RouteResponse, MultiRouteResponse, CandidateRoute, NavigationStep, RoutePreference
+from app.services import safety_service, weather_service, scoring_service
 
 def parse_steps(osrm_steps) -> list[NavigationStep]:
     steps = []
@@ -25,7 +25,7 @@ def parse_steps(osrm_steps) -> list[NavigationStep]:
         ))
     return steps
 
-def get_multi_routes(
+async def get_multi_routes(
     db: Session,
     origin_lat: float, 
     origin_lon: float, 
@@ -33,7 +33,8 @@ def get_multi_routes(
     dest_lon: float, 
     profile: str = "walking",
     include_safety_context: bool = True,
-    corridor_radius_meters: float = 500.0
+    corridor_radius_meters: float = 500.0,
+    preference: RoutePreference = RoutePreference.BALANCED
 ) -> MultiRouteResponse:
     # Map the requested profile to OSRM's internal profile names
     osrm_profile = "foot"
@@ -54,7 +55,8 @@ def get_multi_routes(
     }
 
     try:
-        response = httpx.get(url, params=params, timeout=10.0)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params, timeout=10.0)
         response.raise_for_status()
         data = response.json()
         
@@ -102,39 +104,39 @@ def get_multi_routes(
         recommendation_reason = None
         
         if candidate_routes:
-            # Simple scoring: weigh duration vs safety.
-            # Here we just label based on fastest and safest without negative wording.
-            fastest = min(candidate_routes, key=lambda r: r.duration_seconds)
+            # Fetch weather context to adjust scoring
+            weather_context = await weather_service.evaluate_weather_context(origin_lat, origin_lon)
             
-            if include_safety_context:
-                safest = max(
-                    candidate_routes, 
-                    key=lambda r: (r.safety_context.police_stations_count + r.safety_context.hospitals_count + r.safety_context.fire_stations_count) if r.safety_context else 0
-                )
-                
-                fastest.label = "Fastest Route"
-                if safest.route_id != fastest.route_id:
-                    safest.label = "Safer Corridor Route"
-                    
-                    safest_facilities = safest.safety_context.police_stations_count + safest.safety_context.hospitals_count + safest.safety_context.fire_stations_count
-                    fastest_facilities = fastest.safety_context.police_stations_count + fastest.safety_context.hospitals_count + fastest.safety_context.fire_stations_count
-                    
-                    time_diff = round((safest.duration_seconds - fastest.duration_seconds) / 60.0, 1)
-                    
-                    if safest_facilities > fastest_facilities:
-                        recommended_route_id = safest.route_id
-                        recommendation_reason = f"{fastest.label} is {time_diff} mins faster, but {safest.label} passes more emergency facilities ({safest.safety_context.police_stations_count} police, {safest.safety_context.hospitals_count} hospitals, {safest.safety_context.fire_stations_count} fire stations) providing a well-monitored corridor."
-                    else:
-                        recommended_route_id = fastest.route_id
-                        recommendation_reason = f"{fastest.label} is the most efficient choice and passes {fastest_facilities} emergency facilities."
-                else:
-                    recommended_route_id = fastest.route_id
-                    facilities = fastest.safety_context.police_stations_count + fastest.safety_context.hospitals_count + fastest.safety_context.fire_stations_count
-                    recommendation_reason = f"This route is the fastest and passes {facilities} emergency facilities."
+            candidate_routes = scoring_service.score_routes(
+                routes=candidate_routes,
+                preference=preference,
+                is_weather_adverse=weather_context.is_adverse,
+                profile=profile
+            )
+            
+            # Sort routes descending by score
+            candidate_routes.sort(key=lambda r: r.score, reverse=True)
+            
+            best_route = candidate_routes[0]
+            recommended_route_id = best_route.route_id
+            
+            reason_parts = []
+            if preference == RoutePreference.FASTEST:
+                reason_parts.append(f"Recommended for speed (Score: {best_route.score}).")
+            elif preference == RoutePreference.SAFEST:
+                reason_parts.append(f"Recommended for safety (Score: {best_route.score}).")
             else:
-                fastest.label = "Fastest Route"
-                recommended_route_id = fastest.route_id
-                recommendation_reason = "This is the fastest available route."
+                reason_parts.append(f"Balanced recommendation (Score: {best_route.score}).")
+                
+            if best_route.safety_context:
+                ctx = best_route.safety_context
+                facs = ctx.police_stations_count + ctx.hospitals_count + ctx.fire_stations_count
+                if facs > 0 or ctx.cctv_count > 0:
+                    reason_parts.append(f"Passes {facs} emergency facilities and {ctx.cctv_count} CCTVs.")
+                if ctx.road_hazards_count == 0:
+                    reason_parts.append("Avoids verified road hazards.")
+            
+            recommendation_reason = " ".join(reason_parts)
 
         return MultiRouteResponse(
             origin=[origin_lon, origin_lat],

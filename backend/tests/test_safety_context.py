@@ -51,16 +51,17 @@ def test_safety_context_integration(client, db):
     }
     mock_response.raise_for_status.return_value = None
 
-    with patch("app.services.routing_service.httpx.get", return_value=mock_response):
-        response = client.post("/api/v1/routing/directions", json={
-            "origin_lat": 8.1830,
-            "origin_lon": 77.4110,
-            "dest_lat": 8.1840,
-            "dest_lon": 77.4125,
-            "profile": "walking",
-            "include_safety_context": True,
-            "corridor_radius_meters": 500.0
-        })
+    with patch("httpx.AsyncClient.get", return_value=mock_response):
+        with patch("app.services.weather_service.evaluate_weather_context", return_value=MagicMock(is_adverse=False)):
+            response = client.post("/api/v1/routing/directions", json={
+                "origin_lat": 8.1830,
+                "origin_lon": 77.4110,
+                "dest_lat": 8.1840,
+                "dest_lon": 77.4125,
+                "profile": "walking",
+                "include_safety_context": True,
+                "corridor_radius_meters": 500.0
+            })
         
         assert response.status_code == 200
         data = response.json()

@@ -7,11 +7,11 @@ from app.database import get_db
 router = APIRouter()
 
 @router.post("/directions", response_model=MultiRouteResponse)
-def get_directions(request: RouteRequest, db: Session = Depends(get_db)):
+async def get_directions(request: RouteRequest, db: Session = Depends(get_db)):
     """
     Get routing directions between two coordinates, including multiple route candidates.
     """
-    return routing_service.get_multi_routes(
+    return await routing_service.get_multi_routes(
         db=db,
         origin_lat=request.origin_lat,
         origin_lon=request.origin_lon,
@@ -19,7 +19,8 @@ def get_directions(request: RouteRequest, db: Session = Depends(get_db)):
         dest_lon=request.dest_lon,
         profile=request.profile,
         include_safety_context=request.include_safety_context,
-        corridor_radius_meters=request.corridor_radius_meters
+        corridor_radius_meters=request.corridor_radius_meters,
+        preference=request.preference
     )
 
 @router.post("/track-progress", response_model=RouteTrackingResponse)
