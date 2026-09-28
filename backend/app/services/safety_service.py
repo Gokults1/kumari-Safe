@@ -61,9 +61,29 @@ def compute_route_safety_context(db: Session, route_coordinates: List[List[float
 
     # CCTV Query
     cctv_geom = CCTVCamera.geom.cast(Geography)
-    cctv_count = db.query(CCTVCamera).filter(
+    cctv_dist_col = func.ST_Distance(cctv_geom, route_geom).label("distance_meters")
+    cctv_rows = db.query(
+        CCTVCamera,
+        func.ST_Y(CCTVCamera.geom).label('latitude'),
+        func.ST_X(CCTVCamera.geom).label('longitude'),
+        cctv_dist_col
+    ).filter(
         func.ST_DWithin(cctv_geom, route_geom, corridor_radius_meters)
-    ).count()
+    ).order_by(cctv_dist_col).all()
+    
+    cctv_count = len(cctv_rows)
+    for c_row in cctv_rows:
+        cctv_obj = c_row.CCTVCamera
+        facilities_within_corridor.append({
+            "facility": {
+                "id": cctv_obj.id,
+                "name": "Public CCTV",
+                "facility_type": "CCTV",
+                "latitude": c_row.latitude,
+                "longitude": c_row.longitude
+            },
+            "distance_km": round(c_row.distance_meters / 1000.0, 2)
+        })
 
     # Hazards Query
     hazard_geom = RoadHazard.geom.cast(Geography)

@@ -60,7 +60,8 @@ def test_user_report_submission_and_verify():
     assert route_resp.status_code == 200, route_resp.text
     route_data = route_resp.json()
     assert len(route_data["routes"]) > 0
-    safety = route_data["routes"][0].get("safety_context")
+    route1 = next(r for r in route_data["routes"] if r["route_id"] == "route_1")
+    safety = route1.get("safety_context")
     assert safety is not None
     assert safety["road_hazards_count"] == 0
     assert len(safety["hazards"]) == 0
@@ -74,7 +75,8 @@ def test_user_report_submission_and_verify():
     route_resp2 = client.post("/api/v1/routing/directions", json=route_req)
     assert route_resp2.status_code == 200
     route_data2 = route_resp2.json()
-    safety2 = route_data2["routes"][0].get("safety_context")
+    route2 = next(r for r in route_data2["routes"] if r["route_id"] == "route_1")
+    safety2 = route2.get("safety_context")
     assert safety2["road_hazards_count"] >= 1
     found = any(h["id"] == hazard_id for h in safety2["hazards"])
     assert found is True

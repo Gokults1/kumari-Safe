@@ -71,8 +71,8 @@ class RouteSafetySummary(BaseModel):
     fire_stations_count: int
     cctv_count: int = 0
     road_hazards_count: int = 0
-    facilities_within_corridor: list[NearestFacilitySummary]
-    hazards: list[RoadHazardSummary] = []
+    facilities_within_corridor: list[dict]
+    hazards: list[dict] = []
     context_description: str
 
 class RouteRequest(BaseModel):
@@ -80,7 +80,7 @@ class RouteRequest(BaseModel):
     origin_lon: float = Field(..., ge=-180, le=180)
     dest_lat: float = Field(..., ge=-90, le=90)
     dest_lon: float = Field(..., ge=-180, le=180)
-    profile: str = Field(default="walking", pattern="^(driving|walking)$")
+    profile: str = Field(default="walking", pattern="^(driving|walking|cycling|transit)$")
     include_safety_context: bool = True
     corridor_radius_meters: float = 500.0
     preference: RoutePreference = RoutePreference.BALANCED

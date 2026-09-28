@@ -111,3 +111,25 @@ class TransitHub(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class TransitSchedule(Base):
+    """Lightweight model for both Train and Bus static schedules."""
+    __tablename__ = "transit_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    route_number = Column(String, index=True, nullable=False) # e.g., "16382" or "Trivandrum-Fast"
+    agency = Column(String, nullable=False) # e.g., "IRCTC", "KSRTC", "TNSTC"
+    transit_type = Column(String, nullable=False) # "TRAIN" or "BUS"
+    
+    source_hub_name = Column(String, nullable=False) # e.g., "Nagercoil Jn"
+    dest_hub_name = Column(String, nullable=False) # e.g., "Trivandrum"
+    
+    departure_time = Column(String, nullable=False) # e.g., "08:40 AM"
+    arrival_time = Column(String, nullable=False) # e.g., "10:15 AM"
+    
+    # List of stops in order, e.g. [{"name": "Nagercoil", "time": "09:10 AM"}, ...]
+    stops = Column(Text, nullable=True) # Storing as JSON string to keep it lightweight without Postgres JSONB dependency
+    
+    frequency_notes = Column(String, nullable=True) # For high-frequency buses: "Every 30 mins"
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

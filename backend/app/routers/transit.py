@@ -4,10 +4,7 @@ from app.database import get_db
 from app.schemas import MultimodalConnectivityResponse
 from app.services.transit_service import get_multimodal_connectivity
 
-router = APIRouter(
-    prefix="/transit",
-    tags=["transit"]
-)
+router = APIRouter()
 
 @router.get("/connectivity", response_model=MultimodalConnectivityResponse)
 def get_connectivity(

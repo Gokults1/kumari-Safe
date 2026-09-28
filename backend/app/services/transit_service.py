@@ -27,8 +27,8 @@ def get_nearest_hub(db: Session, lon: float, lat: float) -> TransitHubResponse |
     hub, distance = result
     
     # Extract lat/lon from the geom
-    lat_val = db.query(func.ST_Y(hub.geom.cast(func.geometry))).scalar()
-    lon_val = db.query(func.ST_X(hub.geom.cast(func.geometry))).scalar()
+    lat_val = db.query(func.ST_Y(hub.geom)).scalar()
+    lon_val = db.query(func.ST_X(hub.geom)).scalar()
 
     return TransitHubResponse(
         id=hub.id,

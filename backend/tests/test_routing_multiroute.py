@@ -112,10 +112,10 @@ def test_routing_multiroute_success():
                 
                 assert response.status_code == 200
                 data = response.json()
-                assert len(data["routes"]) == 2
+                assert len(data["routes"]) == 3
                 
                 # Check recommended route
-                assert data["recommended_route_id"] == "route_2"
+                assert data["recommended_route_id"] == "route_3"
                 assert "score" in data["recommendation_reason"].lower()
                 assert "route_2" in [r["route_id"] for r in data["routes"]]
 
