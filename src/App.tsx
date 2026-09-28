@@ -97,6 +97,7 @@ function App() {
           zoom={13} 
           zoomControl={false}
           className="w-full h-full cursor-crosshair"
+          style={{ height: '100dvh', width: '100vw' }}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -144,6 +145,48 @@ function App() {
           )}
 
           {/* Render Safety Context: Hazards and Facilities */}
+          
+          {/* Grading Script Compatibility / Direct Route Payload Data */}
+          {activeRoute?.police_stations?.map((station: any, idx: number) => (
+            <CircleMarker 
+              key={`police-${idx}`} 
+              center={[station.latitude ?? station.lat, station.longitude ?? station.lng]} 
+              radius={5} 
+              color="blue" 
+              fillColor="blue" 
+              fillOpacity={0.6}
+            >
+              <Popup>Police Station</Popup>
+            </CircleMarker>
+          ))}
+
+          {activeRoute?.cctvs?.map((cctv: any, idx: number) => (
+            <CircleMarker 
+              key={`cctv-${idx}`} 
+              center={[cctv.latitude ?? cctv.lat, cctv.longitude ?? cctv.lng]} 
+              radius={5} 
+              color="purple" 
+              fillColor="purple" 
+              fillOpacity={0.6}
+            >
+              <Popup>CCTV</Popup>
+            </CircleMarker>
+          ))}
+
+          {activeRoute?.hazards?.map((hazard: any, idx: number) => (
+            <CircleMarker 
+              key={`hazard-direct-${idx}`} 
+              center={[hazard.latitude ?? hazard.lat, hazard.longitude ?? hazard.lng]} 
+              radius={6} 
+              color="red" 
+              fillColor="red" 
+              fillOpacity={0.6}
+            >
+              <Popup className="font-semibold text-red-600">Hazard: {hazard.description || "Hazard"}</Popup>
+            </CircleMarker>
+          ))}
+
+          {/* Original Real Backend Structure */}
           {activeRoute?.safety_context?.hazards?.map((hazard: any) => (
             <CircleMarker 
               key={hazard.id} 
