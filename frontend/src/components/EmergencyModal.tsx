@@ -9,6 +9,17 @@ interface EmergencyModalProps {
   userLocation: [number, number] | null;
 }
 
+// Pure JavaScript Haversine distance formula
+export function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 // Built-in verified Kanniyakumari Emergency Directory — ensures Emergency NEVER shows empty
 const DEFAULT_EMERGENCY_DATA = {
   closest_facilities: {
@@ -54,6 +65,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Kottar Police Station",
       phone: "04652-220517",
       address: "Court Road, Kottar, Nagercoil",
+      latitude: 8.1705,
+      longitude: 77.4428,
+      lat: 8.1705,
+      lon: 77.4428,
       staff_directory: [
         { name: "K. Selvakumar", rank: "Inspector of Police (SHO)", phone: "+91-9498100101" },
         { name: "M. Ramesh", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100102" },
@@ -65,6 +80,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Vadasery Police Station",
       phone: "04652-220518",
       address: "Christopher Bus Stand Road, Vadasery, Nagercoil",
+      latitude: 8.1923,
+      longitude: 77.4300,
+      lat: 8.1923,
+      lon: 77.4300,
       staff_directory: [
         { name: "R. Murugan", rank: "Inspector of Police (SHO)", phone: "+91-9498100201" },
         { name: "P. Lakshmi", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100202" },
@@ -76,6 +95,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Nesamony Nagar Police Station",
       phone: "04652-278222",
       address: "Nesamony Nagar, Nagercoil",
+      latitude: 8.1882,
+      longitude: 77.4215,
+      lat: 8.1882,
+      lon: 77.4215,
       staff_directory: [
         { name: "C. Ravichandran", rank: "Inspector of Police (SHO)", phone: "+91-9498100251" },
         { name: "S. Manickam", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100252" },
@@ -86,6 +109,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Nagercoil All Women Police Station (AWPS)",
       phone: "04652-220519",
       address: "SP Office Campus, Nagercoil",
+      latitude: 8.1812,
+      longitude: 77.4310,
+      lat: 8.1812,
+      lon: 77.4310,
       staff_directory: [
         { name: "T. Gomathi", rank: "Inspector of Police (SHO)", phone: "+91-9498100261" },
         { name: "M. Meenakshi", rank: "Sub-Inspector", phone: "+91-9498100262" },
@@ -96,6 +123,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Kanyakumari Police Station",
       phone: "04652-246222",
       address: "Main Road, Kanyakumari",
+      latitude: 8.0864,
+      longitude: 77.5517,
+      lat: 8.0864,
+      lon: 77.5517,
       staff_directory: [
         { name: "A. Johnkumar", rank: "Inspector of Police (SHO)", phone: "+91-9498100301" },
         { name: "D. Manikandan", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100302" },
@@ -107,6 +138,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Suchindram Police Station",
       phone: "04652-241222",
       address: "Car Street, Suchindram",
+      latitude: 8.1565,
+      longitude: 77.4641,
+      lat: 8.1565,
+      lon: 77.4641,
       staff_directory: [
         { name: "V. Rajan", rank: "Inspector of Police (SHO)", phone: "+91-9498100401" },
         { name: "N. Senthil", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100402" },
@@ -117,6 +152,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Anjugramam Police Station",
       phone: "04652-247222",
       address: "Kanyakumari Highway, Anjugramam",
+      latitude: 8.1362,
+      longitude: 77.5273,
+      lat: 8.1362,
+      lon: 77.5273,
       staff_directory: [
         { name: "S. Subramanian", rank: "Inspector of Police (SHO)", phone: "+91-9498101011" },
         { name: "P. Muthulakshmi", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498101012" },
@@ -127,6 +166,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Thuckalay Police Station",
       phone: "04651-250222",
       address: "Padmanabhapuram Road, Thuckalay",
+      latitude: 8.2464,
+      longitude: 77.3275,
+      lat: 8.2464,
+      lon: 77.3275,
       staff_directory: [
         { name: "S. Balasubramanian", rank: "Inspector of Police (SHO)", phone: "+91-9498100501" },
         { name: "P. Nirmala", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100502" },
@@ -138,6 +181,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Marthandam Police Station",
       phone: "04651-270222",
       address: "Main Road, Marthandam",
+      latitude: 8.3101,
+      longitude: 77.2185,
+      lat: 8.3101,
+      lon: 77.2185,
       staff_directory: [
         { name: "J. Rajkumar", rank: "Inspector of Police (SHO)", phone: "+91-9498100601" },
         { name: "T. Vanitha", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100602" },
@@ -149,6 +196,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Colachel Police Station",
       phone: "04651-226222",
       address: "Port Road, Colachel",
+      latitude: 8.1772,
+      longitude: 77.2625,
+      lat: 8.1772,
+      lon: 77.2625,
       staff_directory: [
         { name: "M. Antony", rank: "Inspector of Police (SHO)", phone: "+91-9498100701" },
         { name: "S. Karthik", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100702" },
@@ -159,6 +210,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Eraniel Police Station",
       phone: "04651-221222",
       address: "Court Road, Eraniel, Neyyoor",
+      latitude: 8.2045,
+      longitude: 77.3005,
+      lat: 8.2045,
+      lon: 77.3005,
       staff_directory: [
         { name: "B. Sundar", rank: "Inspector of Police (SHO)", phone: "+91-9498100801" },
         { name: "G. Jeyalakshmi", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100802" },
@@ -169,6 +224,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Aralvaimozhi Police Station",
       phone: "04652-263222",
       address: "NH 44, Muppandal Road, Aralvaimozhi",
+      latitude: 8.2562,
+      longitude: 77.5218,
+      lat: 8.2562,
+      lon: 77.5218,
       staff_directory: [
         { name: "D. Kumaresan", rank: "Inspector of Police (SHO)", phone: "+91-9498100901" },
         { name: "L. Suganya", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100902" },
@@ -179,6 +238,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Kulasekharam Police Station",
       phone: "04651-277222",
       address: "Thirparappu Road, Kulasekharam",
+      latitude: 8.3610,
+      longitude: 77.2980,
+      lat: 8.3610,
+      lon: 77.2980,
       staff_directory: [
         { name: "M. Sivakumar", rank: "Inspector of Police (SHO)", phone: "+91-9498100951" },
         { name: "R. Ponraj", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100952" },
@@ -189,6 +252,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Karungal Police Station",
       phone: "04651-268222",
       address: "Market Junction, Karungal",
+      latitude: 8.2520,
+      longitude: 77.2010,
+      lat: 8.2520,
+      lon: 77.2010,
       staff_directory: [
         { name: "P. Justin", rank: "Inspector of Police (SHO)", phone: "+91-9498100961" },
         { name: "K. Muthu", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100962" },
@@ -199,6 +266,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Kaliyakkavilai Police Station",
       phone: "04651-244222",
       address: "Border Road, Kaliyakkavilai",
+      latitude: 8.3280,
+      longitude: 77.1680,
+      lat: 8.3280,
+      lon: 77.1680,
       staff_directory: [
         { name: "N. Ganeshamurthy", rank: "Inspector of Police (SHO)", phone: "+91-9498100971" },
         { name: "M. Francis", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100972" },
@@ -209,6 +280,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Asaripallam Police Station",
       phone: "04652-223222",
       address: "Medical College Road, Asaripallam",
+      latitude: 8.1691,
+      longitude: 77.4042,
+      lat: 8.1691,
+      lon: 77.4042,
       staff_directory: [
         { name: "T. Sankar", rank: "Inspector of Police (SHO)", phone: "+91-9498100981" },
         { name: "A. Stella", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100982" },
@@ -219,6 +294,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Bhoothapandy Police Station",
       phone: "04652-282222",
       address: "Main Road, Bhoothapandy",
+      latitude: 8.2612,
+      longitude: 77.4475,
+      lat: 8.2612,
+      lon: 77.4475,
       staff_directory: [
         { name: "K. Dharmaraj", rank: "Inspector of Police (SHO)", phone: "+91-9498100991" },
         { name: "E. Vijaya", rank: "Sub-Inspector (Law & Order)", phone: "+91-9498100992" },
@@ -229,6 +308,10 @@ const DEFAULT_EMERGENCY_DATA = {
       name: "Railway Police Station (RPF / GRP Nagercoil)",
       phone: "04652-222340",
       address: "Platform 1, Nagercoil Junction Railway Station",
+      latitude: 8.1725,
+      longitude: 77.4398,
+      lat: 8.1725,
+      lon: 77.4398,
       staff_directory: [
         { name: "S. Radhakrishnan", rank: "Inspector of Police (RPF SHO)", phone: "+91-9498101051" },
         { name: "K. Krishnan", rank: "Sub-Inspector (GRP Railway Police)", phone: "+91-9498101052" },
@@ -266,10 +349,39 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
   const [loading, setLoading] = useState(false);
   const [expandedStation, setExpandedStation] = useState<number | null>(0); // First station expanded by default
   const [searchQuery, setSearchQuery] = useState('');
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(userLocation);
+
+  // 1. Browser Geolocation: Get user coordinates using native navigator.geolocation.getCurrentPosition()
+  useEffect(() => {
+    if (isOpen) {
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            setUserCoords([lat, lon]);
+          },
+          (error) => {
+            console.warn('Browser geolocation prompt/lookup failed or denied:', error);
+            if (userLocation) {
+              setUserCoords(userLocation);
+            } else {
+              setUserCoords([8.1833, 77.4119]);
+            }
+          },
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+        );
+      } else if (userLocation) {
+        setUserCoords(userLocation);
+      } else {
+        setUserCoords([8.1833, 77.4119]);
+      }
+    }
+  }, [isOpen, userLocation]);
 
   useEffect(() => {
     if (isOpen) {
-      const loc = userLocation || [8.1833, 77.4119];
+      const loc = userCoords || userLocation || [8.1833, 77.4119];
       setLoading(true);
       getEmergencyAssist(loc[0], loc[1])
         .then(res => {
@@ -292,10 +404,40 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
           setLoading(false);
         });
     }
-  }, [isOpen, userLocation]);
+  }, [isOpen, userCoords, userLocation]);
+
+  // Compute distances for all police stations using pure JavaScript Haversine formula
+  const activeUserLoc = userCoords || userLocation || [8.1833, 77.4119];
+  const stationsWithDistance = (data.all_police_stations || []).map((st: any) => {
+    const sLat = st.latitude ?? st.lat;
+    const sLon = st.longitude ?? st.lon ?? st.lng;
+    let dist: number | null = null;
+    if (sLat !== undefined && sLon !== undefined && activeUserLoc) {
+      dist = getDistance(activeUserLoc[0], activeUserLoc[1], sLat, sLon);
+    } else if (st.distance_km !== undefined) {
+      dist = st.distance_km;
+    } else if (st.distance_meters !== undefined) {
+      dist = st.distance_meters / 1000;
+    }
+    return {
+      ...st,
+      distance_km: dist !== null ? Math.round(dist * 10) / 10 : null
+    };
+  });
+
+  // Find nearest police station
+  const nearestStation = stationsWithDistance.length > 0
+    ? stationsWithDistance.reduce((min: any, curr: any) => {
+        if (curr.distance_km === null) return min;
+        if (!min || min.distance_km === null || curr.distance_km < min.distance_km) {
+          return curr;
+        }
+        return min;
+      }, null)
+    : null;
 
   // Filter police stations by search
-  const filteredStations = (data.all_police_stations || []).filter((st: any) => {
+  const filteredStations = stationsWithDistance.filter((st: any) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     const nameMatch = st.name?.toLowerCase().includes(q);
@@ -460,6 +602,41 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
 
                   {/* Stations List */}
                   <div className="flex flex-col gap-2.5 max-h-64 overflow-y-auto pr-1">
+                    {/* 📍 Nearest Police Station to You - Highlighted Top Card */}
+                    {nearestStation && (
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl p-3 shadow-sm flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[11px] font-black text-blue-900 flex items-center gap-1">
+                              📍 Nearest Police Station to You
+                            </span>
+                            {nearestStation.distance_km !== null && nearestStation.distance_km !== undefined && (
+                              <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                                {nearestStation.distance_km} km
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {nearestStation.name}
+                          </p>
+                          {nearestStation.address && (
+                            <p className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+                              {nearestStation.address}
+                            </p>
+                          )}
+                        </div>
+                        <a
+                          href={`tel:${nearestStation.phone || '100'}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm shrink-0"
+                          title="Call Nearest Station"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Call: {nearestStation.phone || '100'}</span>
+                        </a>
+                      </div>
+                    )}
+
                     {filteredStations.map((station: any, idx: number) => {
                       const isExpanded = expandedStation === idx;
                       return (

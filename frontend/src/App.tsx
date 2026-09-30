@@ -3,9 +3,11 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker } from '
 import 'leaflet/dist/leaflet.css';
 import { ShieldAlert, CloudRain, ThermometerSun } from 'lucide-react';
 import { EmergencyModal } from './components/EmergencyModal';
-import { RoutingPanel } from './components/RoutingPanel';
+import { RoutingPanel, LocationSearch, getTransportBadge } from './components/RoutingPanel';
 import { MapEvents } from './components/MapEvents';
 import L from 'leaflet';
+
+export { LocationSearch, getTransportBadge };
 
 import { useMap } from 'react-leaflet';
 
@@ -16,6 +18,17 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+// Pure JavaScript Haversine distance formula
+export function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function NavCamera({ simLocation, isNavigating }: any) {
   const map = useMap();
@@ -100,8 +113,8 @@ function App() {
           style={{ height: '100dvh', width: '100vw' }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             className="dark-map-tiles"
           />
           <MapEvents onClick={handleMapClick} />
