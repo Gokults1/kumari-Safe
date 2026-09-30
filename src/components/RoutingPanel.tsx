@@ -2,18 +2,102 @@ import React, { useState } from 'react';
 import { Navigation, ShieldCheck, Clock, Activity, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Search, Train } from 'lucide-react';
 import { getDirections, getMultimodalHubs, searchTrains } from '../api';
 
-const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, onSetMode }: any) => {
+// Transport badge parser for OpenStreetMap Photon suggestions
+export function getTransportBadge(properties: any): { text: string; className: string } {
+  const name = (properties?.name || '').toLowerCase();
+  const osmVal = (properties?.osm_value || '').toLowerCase();
+  const osmKey = (properties?.osm_key || '').toLowerCase();
+  const textToCheck = `${name} ${osmVal} ${osmKey}`;
+
+  // Priority 1: Bus / KSRTC badge
+  if (
+    textToCheck.includes('bus') ||
+    textToCheck.includes('bus_stop') ||
+    textToCheck.includes('bus_station') ||
+    textToCheck.includes('ksrtc')
+  ) {
+    return {
+      text: 'KSRTC / Bus Stand',
+      className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+    };
+  }
+
+  // Priority 2: Railway / Train badge
+  if (
+    textToCheck.includes('train') ||
+    textToCheck.includes('railway') ||
+    textToCheck.includes('station')
+  ) {
+    return {
+      text: 'Railway / Train',
+      className: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+    };
+  }
+
+  // Priority 3: General street or town location
+  return {
+    text: 'Location',
+    className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+  };
+}
+
+export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, onSetMode }: any) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  // Debounced live suggestions from free OpenStreetMap Photon API
+  React.useEffect(() => {
+    if (!query || query.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&lat=8.1833&lon=77.4119`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.features || []);
+          setShowSuggestions(true);
+        }
+      } catch (e) {
+        console.error('Photon autocomplete error:', e);
+      }
+      setSearching(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const handleSelectSuggestion = (feature: any) => {
+    // GeoJSON Point coordinates: [longitude, latitude]
+    const coords: [number, number] = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+    const p = feature.properties || {};
+    const name = p.name || p.street || 'Selected Location';
+    setQuery(name);
+    setShowSuggestions(false);
+    if (onSelect) {
+      onSelect(coords);
+    }
+  };
+
   const handleSearch = async () => {
-    if (!query) return;
+    if (!query.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(data);
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&lat=8.1833&lon=77.4119`);
+      if (res.ok) {
+        const data = await res.json();
+        const feats = data.features || [];
+        setSuggestions(feats);
+        if (feats.length > 0) {
+          setShowSuggestions(true);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -21,42 +105,79 @@ const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, onSetMod
   };
 
   return (
-    <div className={`w-full flex flex-col p-4 rounded-2xl border transition-all ${isActive ? 'bg-slate-100 ring-2 ring-blue-500/30' : 'bg-slate-50 border-slate-100'}`}>
+    <div className={`relative w-full flex flex-col p-4 rounded-2xl border transition-all ${isActive ? 'bg-slate-100 ring-2 ring-blue-500/30' : 'bg-slate-50 border-slate-100'}`}>
       <div className="flex gap-2 items-center">
-         <button onClick={() => onSetMode(mode)} className="text-xs p-2 bg-blue-100 hover:bg-blue-200 transition-colors rounded-lg text-blue-700 font-bold whitespace-nowrap">
-           {isActive ? 'Tap Map' : 'Map'}
-         </button>
-         <input 
-           type="text" 
-           value={query} 
-           onChange={(e) => setQuery(e.target.value)} 
-           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-           placeholder={value ? "Selected" : placeholder} 
-           className="w-full bg-white px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800"
-         />
-         <button onClick={handleSearch} disabled={searching} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50 transition-colors">
-           Search
-         </button>
+        <button 
+          type="button"
+          onClick={() => onSetMode(mode)} 
+          className="text-xs p-2 bg-blue-100 hover:bg-blue-200 transition-colors rounded-lg text-blue-700 font-bold whitespace-nowrap"
+        >
+          {isActive ? 'Tap Map' : 'Map'}
+        </button>
+        <div className="relative flex-1">
+          <input 
+            type="text" 
+            value={query} 
+            onChange={(e) => setQuery(e.target.value)} 
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+            onBlur={() => {
+              // Delay hide so suggestion click can fire
+              setTimeout(() => setShowSuggestions(false), 200);
+            }}
+            placeholder={value ? "Selected" : placeholder} 
+            className="w-full bg-white px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800"
+          />
+
+          {/* Floating suggestion list directly underneath the active input box */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
+              {suggestions.map((feature: any, idx: number) => {
+                const p = feature.properties || {};
+                const badge = getTransportBadge(p);
+                const title = p.name || p.street || 'Place';
+                const subtitle = [p.locality, p.district, p.city, p.state].filter(Boolean).join(', ');
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onMouseDown={(e) => {
+                      // Prevent blur before click executes
+                      e.preventDefault();
+                      handleSelectSuggestion(feature);
+                    }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                        {title}
+                      </p>
+                      {subtitle && (
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ${badge.className}`}>
+                      [{badge.text}]
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <button 
+          type="button"
+          onClick={handleSearch} 
+          disabled={searching} 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50 transition-colors"
+        >
+          {searching ? '...' : 'Search'}
+        </button>
       </div>
       {value && <div className="text-xs font-semibold text-slate-500 truncate mt-2 text-center">{value}</div>}
-      
-      {results.length > 0 && (
-        <div className="flex flex-col gap-1 max-h-32 overflow-y-auto mt-2 bg-white rounded-lg p-1 border shadow-sm custom-scrollbar">
-          {results.map((r, i) => (
-            <button 
-              key={i} 
-              onClick={() => {
-                if(onSelect) onSelect([parseFloat(r.lat), parseFloat(r.lon)]);
-                setResults([]);
-                setQuery('');
-              }}
-              className="text-left text-xs p-2 hover:bg-slate-100 rounded text-slate-700 truncate"
-            >
-              {r.display_name}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
