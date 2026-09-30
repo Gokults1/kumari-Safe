@@ -54,3 +54,20 @@ export const getEmergencyAssist = async (lat: number, lon: number) => {
   });
   return response.data;
 };
+
+export const searchTrains = async (destination?: string, direction?: string, station?: string) => {
+  const params: any = {};
+  if (destination) params.destination = destination;
+  if (direction && direction !== 'ALL') params.direction = direction;
+  if (station && station !== 'ALL') params.station = station;
+  const response = await api.get('/transit/trains/search', { params });
+  return response.data;
+};
+
+export const getAllTrains = async (direction?: string, station?: string) => {
+  const params: any = {};
+  if (direction && direction !== 'ALL') params.direction = direction;
+  if (station && station !== 'ALL') params.station = station;
+  const response = await api.get('/transit/trains/all', { params });
+  return response.data;
+};

@@ -89,7 +89,7 @@ function App() {
       : null;
 
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden relative font-sans text-white bg-slate-900">
+    <div className="h-[100dvh] w-screen overflow-hidden relative font-sans text-slate-900 bg-slate-50">
       {/* Background Map Container */}
       <div className="absolute inset-0 z-0">
         <MapContainer 
@@ -221,10 +221,10 @@ function App() {
       <div className="absolute inset-0 z-40 pointer-events-none">
         
         {/* Floating Emergency Button */}
-        <div className="absolute top-4 right-4 md:top-6 md:right-6 pointer-events-auto flex flex-col gap-3 items-end">
+        <div className="absolute top-6 right-6 pointer-events-auto flex flex-col gap-3 items-end z-40">
           <button 
             onClick={() => setIsEmergencyModalOpen(true)}
-            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-full shadow-lg shadow-red-500/30 transition-all active:scale-95 font-semibold"
+            className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg shadow-rose-500/30 transition-all active:scale-95 font-bold"
           >
             <ShieldAlert className="w-5 h-5" />
             <span>Emergency</span>
@@ -269,6 +269,8 @@ function App() {
           isNavigating={isNavigating}
           onStartNavigation={() => setIsNavigating(true)}
           onExitNavigation={() => setIsNavigating(false)}
+          onSetOrigin={setOrigin}
+          onSetDest={setDest}
         />
       </div>
 
