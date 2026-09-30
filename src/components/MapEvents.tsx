@@ -1,10 +1,5 @@
-import { useMapEvents } from 'react-leaflet';
+import React from 'react';
 
-export const MapEvents = ({ onClick }: { onClick: (lat: number, lng: number) => void }) => {
-  useMapEvents({
-    click(e) {
-      onClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
+export const MapEvents: React.FC<{ onClick?: (lat: number, lng: number) => void }> = () => {
   return null;
 };
