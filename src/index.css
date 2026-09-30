@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
 @layer base {
   body {
@@ -16,11 +16,10 @@
 }
 
 /* Custom premium map overrides */
-.leaflet-container {
-  background: #0f172a !important; /* slate-900 */
-}
-.dark-map-tiles {
-  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+.maplibregl-map,
+.maplibregl-canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 @keyframes pulse-ring {
