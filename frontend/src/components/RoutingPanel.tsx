@@ -131,7 +131,7 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
 
           {/* Floating suggestion list directly underneath the active input box */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-lg left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-800">
               {suggestions.map((feature: any, idx: number) => {
                 const p = feature.properties || {};
                 const badge = getTransportBadge(p);
@@ -147,14 +147,14 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
                       e.preventDefault();
                       handleSelectSuggestion(feature);
                     }}
-                    className="w-full text-left p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-2"
+                    className="w-full text-left p-2.5 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-2 text-white"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                      <p className="text-xs font-bold text-slate-100 truncate">
                         {title}
                       </p>
                       {subtitle && (
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
                           {subtitle}
                         </p>
                       )}

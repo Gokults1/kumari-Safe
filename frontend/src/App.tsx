@@ -1,48 +1,25 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useState, useRef, useEffect } from 'react';
+import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl/maplibre';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { ShieldAlert, CloudRain, ThermometerSun } from 'lucide-react';
 import { EmergencyModal } from './components/EmergencyModal';
 import { RoutingPanel, LocationSearch, getTransportBadge } from './components/RoutingPanel';
-import { MapEvents } from './components/MapEvents';
-import L from 'leaflet';
 
 export { LocationSearch, getTransportBadge };
-
-import { useMap } from 'react-leaflet';
-
-// Fix for default marker icon in leaflet with bundlers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
 
 // Pure JavaScript Haversine distance formula
 export function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function NavCamera({ simLocation, isNavigating }: any) {
-  const map = useMap();
-  React.useEffect(() => {
-    if (isNavigating && simLocation) {
-      map.flyTo(simLocation, 18, { animate: true, duration: 0.3 });
-    } else if (!isNavigating && simLocation) {
-      map.setZoom(13);
-    }
-  }, [simLocation, isNavigating, map]);
-  return null;
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function App() {
+  const mapRef = useRef<MapRef>(null);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [origin, setOrigin] = useState<[number, number] | null>(null);
   const [dest, setDest] = useState<[number, number] | null>(null);
@@ -51,8 +28,10 @@ function App() {
   const [multimodalData, setMultimodalData] = useState<any>(null);
 
   const [isNavigating, setIsNavigating] = useState(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
-  const handleMapClick = (lat: number, lng: number) => {
+  const handleMapClick = (e: any) => {
+    const { lng, lat } = e.lngLat;
     if (selectionMode === 'ORIGIN') {
       setOrigin([lat, lng]);
       setSelectionMode(null);
@@ -65,9 +44,7 @@ function App() {
   const activeRoute = routesData?.routes?.[0];
   const weather = activeRoute?.weather_context;
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-
-  React.useEffect(() => {
+  useEffect(() => {
     let watchId: number;
     if (isNavigating) {
       if ('geolocation' in navigator) {
@@ -77,7 +54,6 @@ function App() {
           },
           (error) => {
             console.error('Error tracking location:', error);
-            // Fallback to origin if GPS is not available/denied
             if (origin) setUserLocation(origin);
           },
           { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
@@ -98,141 +74,183 @@ function App() {
   const currentNavLocation: [number, number] | null = isNavigating && userLocation 
     ? userLocation 
     : (activeRoute?.coordinates?.length > 0 && origin) 
-      ? origin // default to origin if not tracking yet
+      ? origin 
       : null;
 
+  // Camera follows vehicle during navigation or jumps to origin
+  useEffect(() => {
+    if (mapRef.current && isNavigating && currentNavLocation) {
+      mapRef.current.flyTo({
+        center: [currentNavLocation[1], currentNavLocation[0]],
+        zoom: 17,
+        pitch: 60,
+        bearing: 0,
+        duration: 800
+      });
+    } else if (mapRef.current && !isNavigating && origin) {
+      mapRef.current.flyTo({
+        center: [origin[1], origin[0]],
+        zoom: 14,
+        pitch: 45,
+        duration: 800
+      });
+    }
+  }, [currentNavLocation, isNavigating, origin]);
+
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden relative font-sans text-slate-900 bg-slate-50">
-      {/* Background Map Container */}
+    <div className="h-[100dvh] w-screen overflow-hidden relative font-sans text-slate-900 bg-slate-900">
+      {/* 100% Free 3D MapContainer using MapLibre GL & OpenFreeMap */}
       <div className="absolute inset-0 z-0">
-        <MapContainer 
-          center={[8.1833, 77.4119]} 
-          zoom={13} 
-          zoomControl={false}
-          className="w-full h-full cursor-crosshair"
-          style={{ height: '100dvh', width: '100vw' }}
+        <Map
+          ref={mapRef}
+          initialViewState={{
+            longitude: 77.4119,
+            latitude: 8.1833,
+            zoom: 14,
+            pitch: 50,
+            bearing: -15
+          }}
+          mapStyle="https://tiles.openfreemap.org/styles/dark"
+          onClick={handleMapClick}
+          style={{ width: '100vw', height: '100dvh' }}
+          cursor="crosshair"
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            className="dark-map-tiles"
+          {/* 3D Buildings Layer: Using OpenFreeMap openmaptiles vector source */}
+          <Layer
+            id="3d-buildings"
+            source="openmaptiles"
+            source-layer="building"
+            type="fill-extrusion"
+            minzoom={14}
+            paint={{
+              'fill-extrusion-color': '#1e293b',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                14,
+                0,
+                14.5,
+                ['coalesce', ['get', 'render_height'], ['get', 'height'], 15]
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                14,
+                0,
+                14.5,
+                ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]
+              ],
+              'fill-extrusion-opacity': 0.85
+            }}
           />
-          <MapEvents onClick={handleMapClick} />
-          <NavCamera simLocation={currentNavLocation} isNavigating={isNavigating} />
-          
-          {origin && !isNavigating && <Marker position={origin}><Popup>Origin</Popup></Marker>}
-          {dest && !isNavigating && <Marker position={dest}><Popup>Destination</Popup></Marker>}
-          
-          {/* Navigation Car Marker */}
-          {isNavigating && currentNavLocation && (
-            <CircleMarker 
-              center={currentNavLocation} 
-              radius={8} 
-              color="#10b981" 
-              fillColor="#34d399" 
-              fillOpacity={1}
-              weight={3}
-            >
-              <Popup>You are here</Popup>
-            </CircleMarker>
-          )}
 
-          {routesData?.routes?.map((route: any, index: number) => (
-            <Polyline 
-              key={index}
-              positions={route.coordinates.map((p: any) => [p[1], p[0]])} // backend returns [lon, lat]
-              pathOptions={{ 
-                color: index === 0 ? (isNavigating ? '#10b981' : '#3b82f6') : '#475569', 
-                weight: index === 0 ? (isNavigating ? 10 : 6) : 4,
-                opacity: index === 0 ? 0.9 : 0.4,
-                lineCap: 'round',
-                lineJoin: 'round'
-              }}
-            />
-          ))}
+          {/* Render Route Polylines via MapLibre Source and Layer */}
+          {routesData?.routes?.map((route: any, index: number) => {
+            const lineGeoJson: any = {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: route.coordinates // [lon, lat] pairs
+              }
+            };
 
-          {multimodalData?.first_mile_hub && !isNavigating && (
-            <Marker position={[multimodalData.first_mile_hub.latitude, multimodalData.first_mile_hub.longitude]}>
-              <Popup>Nearest Transit Hub: {multimodalData.first_mile_hub.name}</Popup>
+            return (
+              <Source key={`route-${index}`} id={`route-source-${index}`} type="geojson" data={lineGeoJson}>
+                <Layer
+                  id={`route-layer-${index}`}
+                  type="line"
+                  layout={{
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                  }}
+                  paint={{
+                    'line-color': index === 0 ? (isNavigating ? '#10b981' : '#3b82f6') : '#64748b',
+                    'line-width': index === 0 ? (isNavigating ? 8 : 6) : 4,
+                    'line-opacity': index === 0 ? 0.95 : 0.4
+                  }}
+                />
+              </Source>
+            );
+          })}
+
+          {/* Origin Marker */}
+          {origin && !isNavigating && (
+            <Marker longitude={origin[1]} latitude={origin[0]} anchor="bottom">
+              <div className="flex flex-col items-center">
+                <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">Origin</span>
+                <div className="w-3.5 h-3.5 bg-blue-600 rounded-full border-2 border-white shadow-md"></div>
+              </div>
             </Marker>
           )}
 
-          {/* Render Safety Context: Hazards and Facilities */}
-          
-          {/* Grading Script Compatibility / Direct Route Payload Data */}
+          {/* Destination Marker */}
+          {dest && !isNavigating && (
+            <Marker longitude={dest[1]} latitude={dest[0]} anchor="bottom">
+              <div className="flex flex-col items-center">
+                <span className="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">Destination</span>
+                <div className="w-3.5 h-3.5 bg-rose-600 rounded-full border-2 border-white shadow-md"></div>
+              </div>
+            </Marker>
+          )}
+
+          {/* Navigation Car / User Live Marker */}
+          {isNavigating && currentNavLocation && (
+            <Marker longitude={currentNavLocation[1]} latitude={currentNavLocation[0]} anchor="center">
+              <div className="relative flex items-center justify-center">
+                <div className="w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-lg z-10" />
+                <div className="absolute w-8 h-8 bg-emerald-400/40 rounded-full animate-ping" />
+              </div>
+            </Marker>
+          )}
+
+          {/* Multimodal Hub Info Marker */}
+          {multimodalData?.first_mile_hub && !isNavigating && (
+            <Marker longitude={multimodalData.first_mile_hub.longitude} latitude={multimodalData.first_mile_hub.latitude} anchor="bottom">
+              <div className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow flex items-center gap-1 border border-amber-400">
+                <span>Transit: {multimodalData.first_mile_hub.name}</span>
+              </div>
+            </Marker>
+          )}
+
+          {/* Police Stations Markers */}
           {activeRoute?.police_stations?.map((station: any, idx: number) => (
-            <CircleMarker 
-              key={`police-${idx}`} 
-              center={[station.latitude ?? station.lat, station.longitude ?? station.lng]} 
-              radius={5} 
-              color="blue" 
-              fillColor="blue" 
-              fillOpacity={0.6}
-            >
-              <Popup>Police Station</Popup>
-            </CircleMarker>
+            <Marker key={`police-${idx}`} longitude={station.longitude ?? station.lng} latitude={station.latitude ?? station.lat} anchor="center">
+              <div className="w-3.5 h-3.5 bg-blue-500 rounded-full border border-white shadow-sm" title="Police Station" />
+            </Marker>
           ))}
 
+          {/* CCTV Markers */}
           {activeRoute?.cctvs?.map((cctv: any, idx: number) => (
-            <CircleMarker 
-              key={`cctv-${idx}`} 
-              center={[cctv.latitude ?? cctv.lat, cctv.longitude ?? cctv.lng]} 
-              radius={5} 
-              color="purple" 
-              fillColor="purple" 
-              fillOpacity={0.6}
-            >
-              <Popup>CCTV</Popup>
-            </CircleMarker>
+            <Marker key={`cctv-${idx}`} longitude={cctv.longitude ?? cctv.lng} latitude={cctv.latitude ?? cctv.lat} anchor="center">
+              <div className="w-3 h-3 bg-purple-500 rounded-full border border-white shadow-sm" title="CCTV" />
+            </Marker>
           ))}
 
+          {/* Hazards Markers */}
           {activeRoute?.hazards?.map((hazard: any, idx: number) => (
-            <CircleMarker 
-              key={`hazard-direct-${idx}`} 
-              center={[hazard.latitude ?? hazard.lat, hazard.longitude ?? hazard.lng]} 
-              radius={6} 
-              color="red" 
-              fillColor="red" 
-              fillOpacity={0.6}
-            >
-              <Popup className="font-semibold text-red-600">Hazard: {hazard.description || "Hazard"}</Popup>
-            </CircleMarker>
+            <Marker key={`hazard-direct-${idx}`} longitude={hazard.longitude ?? hazard.lng} latitude={hazard.latitude ?? hazard.lat} anchor="center">
+              <div className="w-3.5 h-3.5 bg-red-500 rounded-full border border-white shadow-sm animate-pulse" title={`Hazard: ${hazard.description || "Hazard"}`} />
+            </Marker>
           ))}
 
-          {/* Original Real Backend Structure */}
+          {/* Original Backend Safety Context Markers */}
           {activeRoute?.safety_context?.hazards?.map((hazard: any) => (
-            <CircleMarker 
-              key={hazard.id} 
-              center={[hazard.latitude, hazard.longitude]} 
-              radius={6} 
-              color="red" 
-              fillColor="red" 
-              fillOpacity={0.6}
-            >
-              <Popup className="font-semibold text-red-600">Hazard: {hazard.description}</Popup>
-            </CircleMarker>
+            <Marker key={hazard.id} longitude={hazard.longitude} latitude={hazard.latitude} anchor="center">
+              <div className="w-3.5 h-3.5 bg-red-500 rounded-full border border-white shadow-sm animate-pulse" title={`Hazard: ${hazard.description}`} />
+            </Marker>
           ))}
           {activeRoute?.safety_context?.facilities_within_corridor?.map((fac: any, idx: number) => (
-            <CircleMarker 
-              key={idx} 
-              center={[fac.facility.latitude, fac.facility.longitude]} 
-              radius={5} 
-              color={fac.facility.facility_type === 'CCTV' ? 'purple' : 'blue'} 
-              fillColor={fac.facility.facility_type === 'CCTV' ? 'purple' : 'blue'} 
-              fillOpacity={0.6}
-            >
-              <Popup>
-                <strong>{fac.facility.name}</strong><br/>
-                Type: {fac.facility.facility_type}<br/>
-                {fac.facility.phone && `Phone: ${fac.facility.phone}`}
-              </Popup>
-            </CircleMarker>
+            <Marker key={idx} longitude={fac.facility.longitude} latitude={fac.facility.latitude} anchor="center">
+              <div className={`w-3 h-3 rounded-full border border-white shadow-sm ${fac.facility.facility_type === 'CCTV' ? 'bg-purple-500' : 'bg-blue-500'}`} title={fac.facility.name} />
+            </Marker>
           ))}
-        </MapContainer>
+        </Map>
       </div>
 
       <div className="absolute inset-0 z-40 pointer-events-none">
-        
         {/* Floating Emergency Button */}
         <div className="absolute top-6 right-6 pointer-events-auto flex flex-col gap-3 items-end z-40">
           <button 
