@@ -8,14 +8,15 @@ from app.services import emergency_service
 
 router = APIRouter()
 
-@router.get("/assist", response_model=EmergencyAssistResponse)
+@router.get("/assist")
 def get_emergency_assistance(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     db: Session = Depends(get_db)
 ):
     """
-    Get aggregated emergency assistance context (closest police, hospital, fire station and district helplines)
+    Get aggregated emergency assistance context (closest police, hospital, fire station,
+    all nearby police stations with staff directories, and district helplines/officers)
     """
     return emergency_service.get_emergency_assistance_context(db, lat, lon)
 

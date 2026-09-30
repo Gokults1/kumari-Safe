@@ -13,6 +13,11 @@ class HealthCheck(BaseModel):
     status: str
     message: str
 
+class PoliceStaff(BaseModel):
+    name: str
+    rank: str
+    phone: str
+
 class EmergencyFacilityBase(BaseModel):
     name: str
     facility_type: FacilityType
@@ -24,6 +29,7 @@ class EmergencyFacilityBase(BaseModel):
     source_url: Optional[str] = None
     last_verified: datetime
     data_type: DataSourceType = DataSourceType.OFFICIAL
+    staff_directory: Optional[list[PoliceStaff]] = None
 
 class EmergencyFacilityCreate(EmergencyFacilityBase):
     pass
