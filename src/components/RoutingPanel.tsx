@@ -670,10 +670,17 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                   <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
                     {/* Bus Results */}
                     {busResults.map((bus: any, idx: number) => {
-                      const isKsrtc = bus.agency === 'KSRTC';
+                      const isKsrtc = (bus.agency || '').toUpperCase().includes('KSRTC');
+                      const busNum = bus.route_number || bus.bus_number || `BUS-${idx+1}`;
+                      const fromStop = bus.from_station || bus.from_stop || 'Nagercoil Vadasery';
+                      const toStop = bus.to_station || bus.to_stop || '';
+                      const fareText = bus.fare || (bus.fare_inr ? `₹${bus.fare_inr}` : '');
+                      const boardingStand = bus.kanniyakumari_station || bus.kanniyakumari_stand || bus.from_station_name || fromStop;
+                      const viaList = bus.stops || bus.via_stops || [];
+
                       return (
                         <div 
-                          key={`bus-${bus.bus_id || idx}`}
+                          key={`bus-${bus.route_number || bus.bus_id || idx}`}
                           className="bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all"
                         >
                           {/* Top Badges */}
@@ -682,28 +689,28 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                               <span className={`text-[10px] px-2 py-0.5 rounded font-black tracking-wide text-white ${
                                 isKsrtc ? 'bg-emerald-600' : 'bg-amber-600'
                               }`}>
-                                {isKsrtc ? 'KSRTC Kerala' : 'SETC Tamil Nadu'}
+                                {isKsrtc ? 'KSRTC Kerala' : 'SETC / TNSTC'}
                               </span>
                               <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
                                 {bus.bus_type}
                               </span>
                               <span className="text-[9px] font-semibold text-slate-500">
-                                #{bus.bus_number}
+                                #{busNum}
                               </span>
                             </div>
 
-                            {bus.fare_inr && (
+                            {fareText && (
                               <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                                &#8377;{bus.fare_inr}
+                                {fareText}
                               </span>
                             )}
                           </div>
 
                           {/* Route */}
                           <div className="text-xs text-slate-900 mb-1.5 flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-800">{bus.from_stop}</span>
+                            <span className="font-bold text-slate-800">{fromStop}</span>
                             <span className="text-slate-400 font-bold">&rarr;</span>
-                            <span className="font-extrabold text-indigo-700">{bus.to_stop}</span>
+                            <span className="font-extrabold text-indigo-700">{toStop}</span>
                           </div>
 
                           {/* Timings & Platform */}
@@ -721,21 +728,21 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                             </span>
                           </div>
 
-                          {/* Via Stops */}
-                          {bus.via_stops && bus.via_stops.length > 0 && (
-                            <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                              <p className="text-[10px] text-slate-500 leading-relaxed">
-                                <span className="font-bold text-slate-700">Via: </span>
-                                {bus.via_stops.join(' \u2192 ')}
-                              </p>
+                          {/* Boarding Stand / Hub */}
+                          {boardingStand && (
+                            <div className="mt-1 mb-1 text-[10px] text-emerald-900 font-semibold bg-emerald-50/70 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Boarding Stand: <strong className="text-emerald-950">{boardingStand}</strong></span>
                             </div>
                           )}
 
-                          {/* Boarding Stand / Station */}
-                          {bus.kanniyakumari_stand && (
-                            <div className="mt-1 text-[9px] text-slate-500 font-medium flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>Boarding: {bus.kanniyakumari_stand}</span>
+                          {/* Via Stops */}
+                          {viaList && viaList.length > 0 && (
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                              <p className="text-[10px] text-slate-500 leading-relaxed">
+                                <span className="font-bold text-slate-700">Via: </span>
+                                {viaList.join(' \u2192 ')}
+                              </p>
                             </div>
                           )}
                         </div>
