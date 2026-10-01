@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [tailwindcss(), react()],
+  optimizeDeps: {
+    exclude: ['maplibre-gl']
+  },
   server: {
     proxy: {
       '/api/v1': {
