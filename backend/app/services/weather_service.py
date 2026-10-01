@@ -29,7 +29,7 @@ async def evaluate_weather_context(lat: float, lon: float) -> WeatherAdvisoryRes
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,precipitation,wind_speed_10m,weather_code"
     
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(url)
             response.raise_for_status()
             data = response.json()

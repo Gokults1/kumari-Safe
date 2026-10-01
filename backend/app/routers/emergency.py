@@ -33,6 +33,7 @@ def get_facilities(
 ):
     return emergency_service.get_facilities(db, facility_type, limit, offset)
 
+@router.get("/nearby", response_model=List[EmergencyFacilityResponse])
 @router.get("/facilities/nearby", response_model=List[EmergencyFacilityResponse])
 def get_facilities_nearby(
     lat: float = Query(..., ge=-90, le=90),
