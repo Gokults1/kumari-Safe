@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigation, ShieldCheck, Clock, Activity, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Search, Train, Bus, MapPin, Sparkles } from 'lucide-react';
+import { Navigation, ShieldCheck, Clock, Activity, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Search, Train, Bus, MapPin, Sparkles, LocateFixed } from 'lucide-react';
 import { getDirections, getMultimodalHubs, searchTrains, searchBuses } from '../api';
 
 // Utility to clean place names for transit search (e.g. "Trivandrum Central, Kerala" -> "Trivandrum")
@@ -53,12 +53,12 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   // Debounced live suggestions from free OpenStreetMap Photon API
   React.useEffect(() => {
     if (!query || query.trim().length < 2) {
       setSuggestions([]);
-      setShowSuggestions(false);
       return;
     }
 
@@ -92,6 +92,46 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
     }
   };
 
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const coords: [number, number] = [lat, lon];
+        let displayName = 'My Current Location';
+        try {
+          const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`);
+          if (res.ok) {
+            const data = await res.json();
+            const p = data.features?.[0]?.properties;
+            if (p?.name || p?.street || p?.city) {
+              displayName = [p.name || p.street, p.city || p.district].filter(Boolean).join(', ');
+            }
+          }
+        } catch (e) {
+          console.error('Reverse geocode error:', e);
+        }
+        setQuery(displayName);
+        setShowSuggestions(false);
+        if (onSelect) {
+          onSelect(coords, displayName);
+        }
+        setLocating(false);
+      },
+      (err) => {
+        console.error('Location error:', err);
+        alert('Could not access current location. Please check browser GPS permissions.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   const handleSearch = async () => {
     if (!query.trim()) return;
     setSearching(true);
@@ -101,9 +141,7 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
         const data = await res.json();
         const feats = data.features || [];
         setSuggestions(feats);
-        if (feats.length > 0) {
-          setShowSuggestions(true);
-        }
+        setShowSuggestions(true);
       }
     } catch (e) {
       console.error(e);
@@ -121,24 +159,58 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
         >
           {isActive ? 'Tap Map' : 'Map'}
         </button>
+
+        {/* My Current Location Button */}
+        <button 
+          type="button"
+          onClick={handleUseCurrentLocation}
+          disabled={locating}
+          title="Use my current GPS location"
+          className="text-xs px-2.5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0 shadow-2xs"
+        >
+          <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-spin text-emerald-700' : 'text-emerald-700'}`} />
+          <span className="hidden sm:inline">{locating ? 'GPS...' : 'My Location'}</span>
+        </button>
+
         <div className="relative flex-1">
           <input 
             type="text" 
             value={query} 
             onChange={(e) => setQuery(e.target.value)} 
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
             onBlur={() => {
               // Delay hide so suggestion click can fire
-              setTimeout(() => setShowSuggestions(false), 200);
+              setTimeout(() => setShowSuggestions(false), 250);
             }}
             placeholder={value ? "Selected" : placeholder} 
             className="w-full bg-white px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800"
           />
 
           {/* Floating suggestion list directly underneath the active input box */}
-          {showSuggestions && suggestions.length > 0 && (
+          {showSuggestions && (
             <div className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-lg left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-800">
+              {/* Option 1: Top My Current Location Action */}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleUseCurrentLocation();
+                }}
+                className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
+              >
+                <div className="flex items-center gap-2">
+                  <LocateFixed className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-300">Use My Current Location</p>
+                    <p className="text-[10px] text-slate-400">GPS location from this device</p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
+                  GPS
+                </span>
+              </button>
+
               {suggestions.map((feature: any, idx: number) => {
                 const p = feature.properties || {};
                 const badge = getTransportBadge(p);
@@ -266,7 +338,46 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
     setTransitSearching(false);
   };
 
-  const handleTransitSearch = (overrideQuery?: string) => {
+    const handleTransitNearMe = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    setTransitSearching(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        // Nearest major hub in Kanniyakumari district
+        const hubs = [
+          { name: 'Nagercoil', lat: 8.1923, lon: 77.4300 },
+          { name: 'Kanyakumari', lat: 8.0864, lon: 77.5502 },
+          { name: 'Marthandam', lat: 8.3039, lon: 77.2185 },
+          { name: 'Thuckalay', lat: 8.2482, lon: 77.3298 },
+          { name: 'Trivandrum', lat: 8.4875, lon: 76.9525 }
+        ];
+        let nearest = hubs[0];
+        let minDist = Infinity;
+        for (const h of hubs) {
+          const d = Math.hypot(lat - h.lat, lon - h.lon);
+          if (d < minDist) {
+            minDist = d;
+            nearest = h;
+          }
+        }
+        setTransitQuery(nearest.name);
+        fetchTransit(nearest.name, transitTab, busAgency, trainDirection, trainStation);
+      },
+      (err) => {
+        console.error(err);
+        setTransitQuery('Nagercoil');
+        fetchTransit('Nagercoil', transitTab, busAgency, trainDirection, trainStation);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+const handleTransitSearch = (overrideQuery?: string) => {
     const q = overrideQuery !== undefined ? overrideQuery : transitQuery;
     fetchTransit(q, transitTab, busAgency, trainDirection, trainStation);
   };
@@ -566,6 +677,16 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                     <Search className="w-3.5 h-3.5" />
                     {transitSearching ? '...' : 'Search'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleTransitNearMe}
+                    disabled={transitSearching}
+                    title="Find buses and trains near my current location"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-colors flex items-center gap-1 shadow-xs shrink-0"
+                  >
+                    <LocateFixed className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Near Me</span>
+                  </button>
                   {transitQuery && (
                     <button
                       onClick={() => { setTransitQuery(''); handleTransitSearch(''); }}
@@ -580,6 +701,13 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                 {/* Popular Destination Quick Pills */}
                 <div className="flex flex-wrap gap-1 items-center">
                   <span className="text-[10px] text-slate-500 font-semibold mr-1">Quick:</span>
+                  <button
+                    onClick={handleTransitNearMe}
+                    className="text-[10px] px-2 py-0.5 rounded-lg font-bold transition-colors bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 flex items-center gap-1"
+                  >
+                    <LocateFixed className="w-3 h-3 text-emerald-700" />
+                    <span>Near Me</span>
+                  </button>
                   {[
                     'Trivandrum', 
                     'Chennai', 
