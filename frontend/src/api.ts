@@ -71,3 +71,30 @@ export const getAllTrains = async (direction?: string, station?: string) => {
   const response = await api.get('/transit/trains/all', { params });
   return response.data;
 };
+
+export const searchBuses = async (destination?: string, agency?: string, station?: string) => {
+  const params: any = {};
+  if (destination) params.destination = destination;
+  if (agency && agency !== 'ALL') params.agency = agency;
+  if (station && station !== 'ALL') params.station = station;
+  const response = await api.get('/transit/buses/search', { params });
+  return response.data;
+};
+
+export const getAllBuses = async (agency?: string, station?: string) => {
+  const params: any = {};
+  if (agency && agency !== 'ALL') params.agency = agency;
+  if (station && station !== 'ALL') params.station = station;
+  const response = await api.get('/transit/buses/all', { params });
+  return response.data;
+};
+
+export const getUnifiedTransit = async (destination?: string, transitType?: string, agency?: string) => {
+  const params: any = {};
+  if (destination) params.destination = destination;
+  if (transitType && transitType !== 'ALL') params.transit_type = transitType;
+  if (agency && agency !== 'ALL') params.agency = agency;
+  const response = await api.get('/transit/all', { params });
+  return response.data;
+};
+

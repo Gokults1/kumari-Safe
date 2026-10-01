@@ -5,6 +5,7 @@ from app.database import get_db
 from app.schemas import MultimodalConnectivityResponse
 from app.services.transit_service import get_multimodal_connectivity
 from app.data.train_schedules import search_trains, get_all_trains
+from app.data.bus_schedules import search_buses, get_all_buses
 
 router = APIRouter()
 
@@ -55,4 +56,70 @@ def get_all_trains_endpoint(
     return {
         "count": len(trains),
         "trains": trains
+    }
+
+
+@router.get("/buses/search")
+def search_buses_endpoint(
+    destination: Optional[str] = Query(None, description="Destination city, town, stop, or place to search buses for"),
+    agency: Optional[str] = Query("ALL", description="Filter by agency: ALL, KSRTC, TNSTC, SETC"),
+    station: Optional[str] = Query("ALL", description="Filter by hub/station: ALL, VADASERY, ANNA, CAPE, MRTD, THUCK, KLKV")
+):
+    """
+    Search KSRTC (Kerala State RTC) and TNSTC/SETC (Tamil Nadu Govt) bus schedules.
+    Covers Nagercoil Vadasery, Kanyakumari, Marthandam, Thuckalay, and Kaliyakkavilai.
+    """
+    query_str = destination or ""
+    results = search_buses(query=query_str, agency=agency or "ALL", station=station or "ALL")
+    return {
+        "query": query_str,
+        "agency": agency,
+        "station": station,
+        "count": len(results),
+        "buses": results
+    }
+
+
+@router.get("/buses/all")
+def get_all_buses_endpoint(
+    agency: Optional[str] = Query("ALL", description="Filter by agency: ALL, KSRTC, TNSTC, SETC"),
+    station: Optional[str] = Query("ALL", description="Filter by hub: ALL, VADASERY, ANNA, CAPE, MRTD")
+):
+    """
+    Get all KSRTC and TNSTC buses operating in Kanniyakumari district.
+    """
+    buses = get_all_buses(agency=agency or "ALL", station=station or "ALL")
+    return {
+        "count": len(buses),
+        "buses": buses
+    }
+
+
+@router.get("/all")
+def get_unified_transit_endpoint(
+    destination: Optional[str] = Query(None, description="Destination city or place to search both trains and buses"),
+    transit_type: Optional[str] = Query("ALL", description="Filter by type: ALL, BUS, TRAIN"),
+    agency: Optional[str] = Query("ALL", description="Filter by agency: ALL, KSRTC, TNSTC, IRCTC")
+):
+    """
+    Unified Transit Search: Returns all matching Trains and Buses (KSRTC & TNSTC) for a selected destination.
+    """
+    query_str = destination or ""
+    trains = []
+    buses = []
+
+    if transit_type in ["ALL", "TRAIN"]:
+        trains = search_trains(query=query_str, direction="ALL", station="ALL")
+
+    if transit_type in ["ALL", "BUS"]:
+        buses = search_buses(query=query_str, agency=agency or "ALL", station="ALL")
+
+    return {
+        "destination": query_str,
+        "transit_type": transit_type,
+        "trains_count": len(trains),
+        "buses_count": len(buses),
+        "total_count": len(trains) + len(buses),
+        "trains": trains,
+        "buses": buses
     }
