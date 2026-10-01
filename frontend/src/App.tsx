@@ -1,7 +1,7 @@
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { useState, useRef, useEffect } from 'react';
 import Map, { Source, Layer, Marker, type MapRef } from 'react-map-gl/maplibre';
 import * as maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import { ShieldAlert, CloudRain, ThermometerSun } from 'lucide-react';
 import { EmergencyModal } from './components/EmergencyModal';
 import { RoutingPanel } from './components/RoutingPanel';
@@ -85,51 +85,22 @@ function App() {
     }
   }, [currentNavLocation, isNavigating, origin]);
 
-  const [mapStyleUrl, setMapStyleUrl] = useState<'dark' | 'liberty'>('dark');
-
   const handleMapLoad = (e: any) => {
     const map = e.target;
-    try {
-      // 1. Safely add 3D building extrusion layer once vector source openmaptiles is ready
-      if (!map.getLayer('3d-buildings') && map.getSource('openmaptiles')) {
-        map.addLayer({
-          id: '3d-buildings',
-          source: 'openmaptiles',
-          'source-layer': 'building',
-          type: 'fill-extrusion',
-          minzoom: 13,
-          paint: {
-            'fill-extrusion-color': '#0ea5e9',
-            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 20],
-            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-            'fill-extrusion-opacity': 0.75
-          }
-        });
-      }
-
-      // 2. Enhance dark style visibility so roads and oceans are crisp and distinct
-      if (mapStyleUrl === 'dark') {
-        if (map.getLayer('water')) {
-          map.setPaintProperty('water', 'fill-color', '#0f2744');
+    if (!map.getLayer('3d-buildings') && map.getSource('openmaptiles')) {
+      map.addLayer({
+        id: '3d-buildings',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        minzoom: 14,
+        paint: {
+          'fill-extrusion-color': '#cbd5e1',
+          'fill-extrusion-height': ['get', 'render_height'],
+          'fill-extrusion-base': ['get', 'render_min_height'],
+          'fill-extrusion-opacity': 0.6
         }
-        if (map.getLayer('highway_minor')) {
-          map.setPaintProperty('highway_minor', 'line-color', '#334155');
-        }
-        if (map.getLayer('highway_major_inner')) {
-          map.setPaintProperty('highway_major_inner', 'line-color', '#64748b');
-        }
-        if (map.getLayer('highway_major_casing')) {
-          map.setPaintProperty('highway_major_casing', 'line-color', '#475569');
-        }
-        if (map.getLayer('landuse_residential')) {
-          map.setPaintProperty('landuse_residential', 'fill-color', '#131e2d');
-        }
-        if (map.getLayer('landcover_wood')) {
-          map.setPaintProperty('landcover_wood', 'fill-color', '#0f291e');
-        }
-      }
-    } catch (err) {
-      console.warn('Map style customization notice:', err);
+      });
     }
   };
 
@@ -141,20 +112,15 @@ function App() {
           mapLib={maplibregl}
           ref={mapRef}
           initialViewState={{
-            longitude: 77.4320,
-            latitude: 8.1800,
+            longitude: 77.4119,
+            latitude: 8.1833,
             zoom: 14,
-            pitch: 55,
-            bearing: -15
+            pitch: 45
           }}
-          mapStyle={
-            mapStyleUrl === 'dark' 
-              ? 'https://tiles.openfreemap.org/styles/dark' 
-              : 'https://tiles.openfreemap.org/styles/liberty'
-          }
+          mapStyle="https://tiles.openfreemap.org/styles/liberty"
           onLoad={handleMapLoad}
           onClick={handleMapClick}
-          style={{ width: '100%', height: '100%' }}
+          style={{ width: '100%', height: '100vh', position: 'absolute', top: 0, left: 0 }}
           cursor="crosshair"
         >
 
@@ -263,32 +229,15 @@ function App() {
       </div>
 
       <div className="absolute inset-0 z-40 pointer-events-none">
-        {/* Floating Controls: 3D Style Selector & Emergency Button */}
+        {/* Floating Emergency Button */}
         <div className="absolute top-6 right-6 pointer-events-auto flex flex-col gap-3 items-end z-40">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 p-1 rounded-full flex items-center shadow-xl text-xs font-semibold">
-              <button
-                onClick={() => setMapStyleUrl('dark')}
-                className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${mapStyleUrl === 'dark' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                3D Dark
-              </button>
-              <button
-                onClick={() => setMapStyleUrl('liberty')}
-                className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${mapStyleUrl === 'liberty' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                3D Street
-              </button>
-            </div>
-
-            <button 
-              onClick={() => setIsEmergencyModalOpen(true)}
-              className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg shadow-rose-500/30 transition-all active:scale-95 font-bold cursor-pointer"
-            >
-              <ShieldAlert className="w-5 h-5" />
-              <span>Emergency</span>
-            </button>
-          </div>
+          <button 
+            onClick={() => setIsEmergencyModalOpen(true)}
+            className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg shadow-rose-500/30 transition-all active:scale-95 font-bold cursor-pointer"
+          >
+            <ShieldAlert className="w-5 h-5" />
+            <span>Emergency</span>
+          </button>
 
           {/* Weather Context (if available) */}
           {weather && (
