@@ -160,18 +160,6 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
           {isActive ? 'Tap Map' : 'Map'}
         </button>
 
-        {/* My Current Location Button */}
-        <button 
-          type="button"
-          onClick={handleUseCurrentLocation}
-          disabled={locating}
-          title="Use my current GPS location"
-          className="text-xs px-2.5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors rounded-lg font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0 shadow-2xs"
-        >
-          <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-spin text-emerald-700' : 'text-emerald-700'}`} />
-          <span className="hidden sm:inline">{locating ? 'GPS...' : 'My Location'}</span>
-        </button>
-
         <div className="relative flex-1">
           <input 
             type="text" 
@@ -190,26 +178,28 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
           {/* Floating suggestion list directly underneath the active input box */}
           {showSuggestions && (
             <div className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-lg left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-800">
-              {/* Option 1: Top My Current Location Action */}
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleUseCurrentLocation();
-                }}
-                className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
-              >
-                <div className="flex items-center gap-2">
-                  <LocateFixed className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-emerald-300">Use My Current Location</p>
-                    <p className="text-[10px] text-slate-400">GPS location from this device</p>
+              {/* Option 1: Top My Current Location Action - ONLY for ORIGIN */}
+              {mode === 'ORIGIN' && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleUseCurrentLocation();
+                  }}
+                  className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <LocateFixed className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-300">Use My Current Location</p>
+                      <p className="text-[10px] text-slate-400">GPS location from this device</p>
+                    </div>
                   </div>
-                </div>
-                <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
-                  GPS
-                </span>
-              </button>
+                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
+                    GPS
+                  </span>
+                </button>
+              )}
 
               {suggestions.map((feature: any, idx: number) => {
                 const p = feature.properties || {};
@@ -256,7 +246,28 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
           {searching ? '...' : 'Search'}
         </button>
       </div>
-      {value && <div className="text-xs font-semibold text-slate-500 truncate mt-2 text-center">{value}</div>}
+
+      {/* Pushed down below search: My Current Location button for ORIGIN */}
+      {mode === 'ORIGIN' ? (
+        <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleUseCurrentLocation}
+            disabled={locating}
+            className="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs"
+          >
+            <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
+            <span>{locating ? 'Acquiring GPS...' : '📍 Use My Current Location'}</span>
+          </button>
+          {value && (
+            <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[180px]" title={value}>
+              {value}
+            </span>
+          )}
+        </div>
+      ) : (
+        value && <div className="text-xs font-semibold text-slate-500 truncate mt-2 text-center">{value}</div>
+      )}
     </div>
   );
 };
