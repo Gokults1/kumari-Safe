@@ -1,0 +1,25 @@
+{
+  "appId": "com.kumarisafe.app",
+  "appName": "KumariSafe",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": [
+      "tiles.openfreemap.org",
+      "router.project-osrm.org",
+      "photon.komoot.io",
+      "*"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "Geolocation": {
+      "requestPermissionsOnFirstCall": true
+    }
+  }
+}

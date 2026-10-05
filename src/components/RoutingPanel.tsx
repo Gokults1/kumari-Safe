@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Navigation, ShieldCheck, Clock, Activity, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Search, Train, Bus, MapPin, Sparkles, LocateFixed } from 'lucide-react';
 import { getDirections, getMultimodalHubs, searchTrains, searchBuses } from '../api';
+import { getAccuratePosition, getCurrentPosition } from '../geo';
 
 // Utility to clean place names for transit search (e.g. "Trivandrum Central, Kerala" -> "Trivandrum")
 export function extractCleanPlace(str: string): string {
@@ -49,14 +50,29 @@ export function getTransportBadge(properties: any): { text: string; className: s
 }
 
 export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, onSetMode }: any) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
+  const isGpsSelectedRef = React.useRef(false);
+
+  // Sync external value changes into input field
+  React.useEffect(() => {
+    if (value !== undefined && value !== null) {
+      setQuery(value);
+    }
+  }, [value]);
 
   // Debounced live suggestions from free OpenStreetMap Photon API
   React.useEffect(() => {
+    // If exact GPS location was chosen, NEVER trigger autocomplete or open dropdown!
+    if (isGpsSelectedRef.current) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
     if (!query || query.trim().length < 2) {
       setSuggestions([]);
       return;
@@ -68,8 +84,11 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
         const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&lat=8.1833&lon=77.4119`);
         if (res.ok) {
           const data = await res.json();
-          setSuggestions(data.features || []);
-          setShowSuggestions(true);
+          // Double check ref hasn't changed during fetch
+          if (!isGpsSelectedRef.current) {
+            setSuggestions(data.features || []);
+            setShowSuggestions(true);
+          }
         }
       } catch (e) {
         console.error('Photon autocomplete error:', e);
@@ -81,55 +100,47 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
   }, [query]);
 
   const handleSelectSuggestion = (feature: any) => {
+    isGpsSelectedRef.current = false;
     // GeoJSON Point coordinates: [longitude, latitude]
     const coords: [number, number] = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
     const p = feature.properties || {};
     const name = p.name || p.street || p.city || 'Selected Location';
     setQuery(name);
     setShowSuggestions(false);
+    setSuggestions([]);
     if (onSelect) {
       onSelect(coords, name);
     }
   };
 
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
+  const handleUseCurrentLocation = async () => {
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        const coords: [number, number] = [lat, lon];
-        let displayName = 'My Current Location';
-        try {
-          const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`);
-          if (res.ok) {
-            const data = await res.json();
-            const p = data.features?.[0]?.properties;
-            if (p?.name || p?.street || p?.city) {
-              displayName = [p.name || p.street, p.city || p.district].filter(Boolean).join(', ');
-            }
-          }
-        } catch (e) {
-          console.error('Reverse geocode error:', e);
-        }
-        setQuery(displayName);
-        setShowSuggestions(false);
-        if (onSelect) {
-          onSelect(coords, displayName);
-        }
-        setLocating(false);
-      },
-      (err) => {
-        console.error('Location error:', err);
-        alert('Could not access current location. Please check browser GPS permissions.');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+    try {
+      // 1. Mark GPS as selected so autocomplete dropdown NEVER opens or overwrites it
+      isGpsSelectedRef.current = true;
+      setShowSuggestions(false);
+      setSuggestions([]);
+
+      // 2. High-precision fresh GPS satellite fix (maximumAge: 0)
+      const pos = await getAccuratePosition(8000);
+      const lat = pos.latitude;
+      const lon = pos.longitude;
+      const coords: [number, number] = [lat, lon];
+      const acc = Math.round(pos.accuracy || 10);
+      const exactLabel = `📍 Exact GPS (${lat.toFixed(5)}, ${lon.toFixed(5)}) ±${acc}m`;
+
+      // 3. Immediately lock exact GPS coordinates and update parent
+      setQuery(exactLabel);
+      setShowSuggestions(false);
+      setSuggestions([]);
+      if (onSelect) {
+        onSelect(coords, exactLabel);
+      }
+    } catch (err) {
+      console.error('Location error:', err);
+      alert('Could not access satellite GPS. Please ensure Location is enabled in High Accuracy mode.');
+    }
+    setLocating(false);
   };
 
   const handleSearch = async () => {
@@ -164,9 +175,16 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
           <input 
             type="text" 
             value={query} 
-            onChange={(e) => setQuery(e.target.value)} 
+            onChange={(e) => {
+              isGpsSelectedRef.current = false;
+              setQuery(e.target.value);
+            }} 
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            onFocus={() => setShowSuggestions(true)}
+            onFocus={() => {
+              if (!isGpsSelectedRef.current && suggestions.length > 0) {
+                setShowSuggestions(true);
+              }
+            }}
             onBlur={() => {
               // Delay hide so suggestion click can fire
               setTimeout(() => setShowSuggestions(false), 250);
@@ -275,26 +293,36 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
 interface RoutingPanelProps {
   origin: [number, number] | null;
   dest: [number, number] | null;
+  originName?: string;
+  destName?: string;
   onSetMode: (mode: 'ORIGIN' | 'DEST' | null) => void;
   selectionMode: 'ORIGIN' | 'DEST' | null;
   onRoutesFound: (data: any) => void;
   onMultimodalFound: (data: any) => void;
+  routesData?: any;
   activeRoute?: any;
+  selectedRouteIndex?: number;
+  onSelectRouteIndex?: (idx: number) => void;
   isNavigating: boolean;
   onStartNavigation: () => void;
   onExitNavigation: () => void;
-  onSetOrigin?: (latlng: [number, number]) => void;
-  onSetDest?: (latlng: [number, number]) => void;
+  onSetOrigin?: (latlng: [number, number], name?: string) => void;
+  onSetDest?: (latlng: [number, number], name?: string) => void;
 }
 
 export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   origin,
   dest,
+  originName,
+  destName,
   onSetMode,
   selectionMode,
   onRoutesFound,
   onMultimodalFound,
+  routesData,
   activeRoute,
+  selectedRouteIndex = 0,
+  onSelectRouteIndex,
   isNavigating,
   onStartNavigation,
   onExitNavigation,
@@ -349,43 +377,36 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
     setTransitSearching(false);
   };
 
-    const handleTransitNearMe = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
+    const handleTransitNearMe = async () => {
     setTransitSearching(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        // Nearest major hub in Kanniyakumari district
-        const hubs = [
-          { name: 'Nagercoil', lat: 8.1923, lon: 77.4300 },
-          { name: 'Kanyakumari', lat: 8.0864, lon: 77.5502 },
-          { name: 'Marthandam', lat: 8.3039, lon: 77.2185 },
-          { name: 'Thuckalay', lat: 8.2482, lon: 77.3298 },
-          { name: 'Trivandrum', lat: 8.4875, lon: 76.9525 }
-        ];
-        let nearest = hubs[0];
-        let minDist = Infinity;
-        for (const h of hubs) {
-          const d = Math.hypot(lat - h.lat, lon - h.lon);
-          if (d < minDist) {
-            minDist = d;
-            nearest = h;
-          }
+    try {
+      const pos = await getCurrentPosition(10000, true);
+      const lat = pos.latitude;
+      const lon = pos.longitude;
+      // Nearest major hub in Kanniyakumari district
+      const hubs = [
+        { name: 'Nagercoil', lat: 8.1923, lon: 77.4300 },
+        { name: 'Kanyakumari', lat: 8.0864, lon: 77.5502 },
+        { name: 'Marthandam', lat: 8.3039, lon: 77.2185 },
+        { name: 'Thuckalay', lat: 8.2482, lon: 77.3298 },
+        { name: 'Trivandrum', lat: 8.4875, lon: 76.9525 }
+      ];
+      let nearest = hubs[0];
+      let minDist = Infinity;
+      for (const h of hubs) {
+        const d = Math.hypot(lat - h.lat, lon - h.lon);
+        if (d < minDist) {
+          minDist = d;
+          nearest = h;
         }
-        setTransitQuery(nearest.name);
-        fetchTransit(nearest.name, transitTab, busAgency, trainDirection, trainStation);
-      },
-      (err) => {
-        console.error(err);
-        setTransitQuery('Nagercoil');
-        fetchTransit('Nagercoil', transitTab, busAgency, trainDirection, trainStation);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+      }
+      setTransitQuery(nearest.name);
+      fetchTransit(nearest.name, transitTab, busAgency, trainDirection, trainStation);
+    } catch (err) {
+      console.error(err);
+      setTransitQuery('Nagercoil');
+      fetchTransit('Nagercoil', transitTab, busAgency, trainDirection, trainStation);
+    }
   };
 
 const handleTransitSearch = (overrideQuery?: string) => {
@@ -431,27 +452,38 @@ const handleTransitSearch = (overrideQuery?: string) => {
     setLoading(false);
   };
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
-    <div className={`transition-all duration-500 ease-in-out pointer-events-auto z-50 flex flex-col overflow-y-auto
+    <div className={`transition-all duration-300 ease-in-out pointer-events-auto z-40 flex flex-col
                     ${isNavigating 
-                      ? 'absolute top-0 left-0 right-0 rounded-b-[2.5rem] w-full max-h-[30vh] border-b bg-emerald-900/90 p-6 pb-8 text-slate-900 backdrop-blur-2xl' 
-                      : 'absolute top-6 left-6 w-[400px] p-6 bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-white/50 max-h-[90vh]'}`}>
+                      ? 'hidden' 
+                      : isCollapsed
+                      ? 'absolute top-16 left-3 right-3 sm:left-4 sm:right-auto sm:w-[360px] p-3 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200'
+                      : 'absolute top-16 left-2 right-2 sm:left-4 sm:right-auto sm:w-[410px] p-4 sm:p-5 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 max-h-[calc(100dvh-5rem)] overflow-y-auto'}`}>
       {!isNavigating && (
-        <>
-          <div className="drag-handle"></div>
-          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-6 shrink-0 tracking-tight">
-            KumariSafe
-          </h1>
-        </>
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-700">Trip Planner</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+          >
+            <span>{isCollapsed ? 'Expand ▴' : 'Minimize ▾'}</span>
+          </button>
+        </div>
       )}
-      
-      {!isNavigating && (
+
+      {!isNavigating && !isCollapsed && (
         <>
           <div className="space-y-4 mb-6 shrink-0">
             <LocationSearch 
               placeholder="Search origin..." 
               onSelect={onSetOrigin} 
-              value={origin ? `${origin[0].toFixed(4)}, ${origin[1].toFixed(4)}` : null} 
+              value={originName || (origin ? `${origin[0].toFixed(4)}, ${origin[1].toFixed(4)}` : '')} 
               mode="ORIGIN" 
               isActive={selectionMode === 'ORIGIN'} 
               onSetMode={onSetMode} 
@@ -459,7 +491,7 @@ const handleTransitSearch = (overrideQuery?: string) => {
             <LocationSearch 
               placeholder="Search destination..." 
               onSelect={handleDestinationSelected} 
-              value={dest ? (destPlace || `${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}`) : null} 
+              value={destName || destPlace || (dest ? `${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}` : '')} 
               mode="DEST" 
               isActive={selectionMode === 'DEST'} 
               onSetMode={onSetMode} 
@@ -470,9 +502,32 @@ const handleTransitSearch = (overrideQuery?: string) => {
         {['FASTEST', 'BALANCED', 'SAFEST'].map((pref) => (
           <button
             key={pref}
+            type="button"
             onClick={async () => {
               setPreference(pref as any);
-              if (origin && dest) {
+              // If routes are already loaded, immediately switch to the matching route
+              if (routesData?.routes?.length > 0) {
+                const rList = routesData.routes;
+                let targetIdx = 0;
+                if (pref === 'SAFEST') {
+                  targetIdx = rList.findIndex((r: any) => r.route_id === 'route_safest');
+                  if (targetIdx === -1) {
+                    targetIdx = rList.reduce((best: number, curr: any, idx: number) => curr.score > rList[best].score ? idx : best, 0);
+                  }
+                } else if (pref === 'FASTEST') {
+                  targetIdx = rList.findIndex((r: any) => r.route_id === 'route_fastest');
+                  if (targetIdx === -1) {
+                    targetIdx = rList.reduce((best: number, curr: any, idx: number) => curr.duration_minutes < rList[best].duration_minutes ? idx : best, 0);
+                  }
+                } else {
+                  targetIdx = rList.findIndex((r: any) => r.route_id === 'route_balanced');
+                  if (targetIdx === -1) targetIdx = 0;
+                }
+                if (targetIdx >= 0 && onSelectRouteIndex) {
+                  onSelectRouteIndex(targetIdx);
+                }
+              } else if (origin && dest) {
+                // If not yet fetched, fetch with selected preference
                 setLoading(true);
                 try {
                   const routeData = await getDirections(origin, dest, pref as any, profile);
@@ -484,10 +539,10 @@ const handleTransitSearch = (overrideQuery?: string) => {
               }
             }}
             className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-              preference === pref ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg text-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-700'
+              preference === pref ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
             }`}
           >
-            {pref}
+            {pref === 'FASTEST' ? '⚡ FASTEST' : pref === 'SAFEST' ? '🛡️ SAFEST' : '⚖️ BALANCED'}
           </button>
         ))}
       </div>
@@ -530,11 +585,91 @@ const handleTransitSearch = (overrideQuery?: string) => {
       {/* Route Info Section */}
       {activeRoute && (
         <div className="mt-6 pt-6 border-t border-slate-100 shrink-0">
-          <h3 className="text-sm font-bold text-slate-600 mb-4 flex items-center gap-2">
-            <ShieldCheck className="text-emerald-400 w-5 h-5" />
-            Recommended Route
-          </h3>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <ShieldCheck className="text-emerald-500 w-5 h-5" />
+              Route Details
+            </h3>
+            {routesData?.routes?.length > 1 && (
+              <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                {routesData.routes.length} Available Routes
+              </span>
+            )}
+          </div>
+
+          {/* Selectable Alternative Route Cards */}
+          {routesData?.routes?.length > 1 && (
+            <div className="flex flex-col gap-2 mb-4">
+              {routesData.routes.map((r: any, idx: number) => {
+                const isSelected = selectedRouteIndex === idx;
+                const isSafe = r.route_id === 'route_safest' || (r.score >= 90);
+                const isFast = r.route_id === 'route_fastest';
+                
+                return (
+                  <button
+                    key={r.route_id || idx}
+                    type="button"
+                    onClick={() => onSelectRouteIndex && onSelectRouteIndex(idx)}
+                    className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      isSelected 
+                        ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-500/20 shadow-sm' 
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-extrabold truncate ${isSelected ? 'text-blue-700' : 'text-slate-800'}`}>
+                          {isSafe ? '🛡️ Safest (Main Roads Only)' : r.label || `Route ${idx + 1}`}
+                        </span>
+                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                          isSafe 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                            : isFast 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                            : 'bg-slate-100 text-slate-700 border border-slate-300'
+                        }`}>
+                          Safety: {Math.round(r.score)}/100
+                        </span>
+                        {isSafe && (
+                          <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            Main Road • Zero Alleys
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 font-medium">
+                        <span className="font-bold text-slate-700">{Math.round(r.duration_minutes)} min</span> • {r.distance_km.toFixed(1)} km
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {isSelected ? 'Active' : 'Choose'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           
+          {/* Safest Route Main Road Guarantee Banner */}
+          {activeRoute.route_id === 'route_safest' && (
+            <div className="bg-emerald-500/10 border border-emerald-500/40 p-3.5 rounded-2xl mb-4 text-emerald-950 dark:text-emerald-200 shadow-xs flex items-start gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black uppercase text-emerald-900 dark:text-emerald-300 tracking-wider">
+                  Main Arterial Highway Corridor
+                </p>
+                <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300/90 leading-relaxed mt-0.5">
+                  Guaranteed to stick strictly to major illuminated thoroughfares and National Highways (NH-66 / NH-44). Completely avoids narrow back-alleys, isolated rural paths, and dark secondary streets.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 border border-slate-100">
               <div className="text-slate-500 text-xs font-bold mb-1 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> Time</div>
