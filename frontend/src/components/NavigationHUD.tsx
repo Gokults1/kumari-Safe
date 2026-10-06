@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { voiceGuidance } from '../services/voiceGuidance';
 import { calculateDistanceMeters, calculateBearing, formatDistance, getManeuverType } from '../services/navigationEngine';
+import { formatDuration } from '../geo';
 
 interface NavigationHUDProps {
   activeRoute: any;
@@ -257,7 +258,7 @@ export const NavigationHUD: React.FC<NavigationHUDProps> = ({
           <div className="text-center px-2">
             <p className="text-xs text-slate-400 font-medium">Est. Time</p>
             <p className="text-base font-black text-white">
-              {Math.round(activeRoute?.duration_minutes || 0)} min
+              {formatDuration(activeRoute?.duration_minutes || 0)}
             </p>
           </div>
         </div>

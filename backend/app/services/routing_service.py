@@ -94,15 +94,16 @@ async def get_multi_routes(
                 distance_meters *= (1.0 + 0.15 * i)
                 duration_seconds *= (1.0 + 0.20 * i)
 
-            if profile == "transit":
-                duration_seconds = duration_seconds * 1.5
-                distance_meters = distance_meters * 1.2
-            elif profile == "walking":
-                duration_seconds = duration_seconds * 7.5
-                distance_meters = distance_meters * 0.8
+            if profile == "walking":
+                duration_seconds = distance_meters / 1.333
             elif profile == "cycling":
-                duration_seconds = duration_seconds * 2.5
-                distance_meters = distance_meters * 0.95
+                duration_seconds = distance_meters / 4.167
+            elif profile == "transit":
+                duration_seconds = distance_meters / 11.67
+            else:
+                implied_speed = (distance_meters / 1000.0) / max(duration_seconds / 3600.0, 0.001)
+                if implied_speed > 115 or implied_speed < 10:
+                    duration_seconds = distance_meters / 16.67
                 
             candidate_routes.append(CandidateRoute(
                 route_id=route_id,

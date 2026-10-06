@@ -199,3 +199,24 @@ export function watchPosition(
   );
   return () => navigator.geolocation.clearWatch(id);
 }
+
+/**
+ * Format duration in minutes into a clean, human-readable string:
+ * - 45 min -> "45 min"
+ * - 469 min -> "7 hr 49 min"
+ * - 7740 min (129 hr) -> "5d 9h"
+ */
+export function formatDuration(totalMins: number): string {
+  const m = Math.round(totalMins);
+  if (m < 60) return `${m} min`;
+  const hrs = Math.floor(m / 60);
+  const rem = m % 60;
+  if (hrs < 24) {
+    if (rem === 0) return `${hrs} hr`;
+    return `${hrs} hr ${rem} min`;
+  }
+  const days = Math.floor(hrs / 24);
+  const remHrs = hrs % 24;
+  if (remHrs === 0) return `${days} days`;
+  return `${days}d ${remHrs}h`;
+}
