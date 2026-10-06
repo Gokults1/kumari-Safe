@@ -165,10 +165,18 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
       <div className="flex gap-2 items-center">
         <button 
           type="button"
-          onClick={() => onSetMode(mode)} 
-          className="text-xs p-2 bg-blue-100 hover:bg-blue-200 transition-colors rounded-lg text-blue-700 font-bold whitespace-nowrap"
+          onClick={() => onSetMode(isActive ? null : mode)} 
+          title={mode === 'DEST' ? "Pin destination on the map" : "Pin origin on the map"}
+          className={`text-xs px-2.5 py-2 transition-all rounded-xl font-bold flex items-center gap-1.5 shrink-0 ${
+            isActive 
+              ? 'bg-rose-600 text-white shadow-md animate-pulse ring-2 ring-rose-400' 
+              : mode === 'DEST'
+              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+              : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300'
+          }`}
         >
-          {isActive ? 'Tap Map' : 'Map'}
+          <MapPin className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : mode === 'DEST' ? 'text-emerald-600' : 'text-blue-600'}`} />
+          <span className="text-[11px] font-bold whitespace-nowrap">{isActive ? 'Tap Map...' : 'Pin on Map'}</span>
         </button>
 
         <div className="relative flex-1">
@@ -188,7 +196,7 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
             onBlur={() => {
               // Delay hide so suggestion click can fire
               setTimeout(() => setShowSuggestions(false), 250);
-            }}
+            }} 
             placeholder={value ? "Selected" : placeholder} 
             className="w-full bg-white px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800"
           />
@@ -215,6 +223,30 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
                   </div>
                   <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
                     GPS
+                  </span>
+                </button>
+              )}
+
+              {/* Option 2: Pin Destination on Map - for DEST mode */}
+              {mode === 'DEST' && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSetMode('DEST');
+                    setShowSuggestions(false);
+                  }}
+                  className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-300">Choose / Pin Destination on Map</p>
+                      <p className="text-[10px] text-slate-400">Click anywhere on the map to set destination</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
+                    Map Pin
                   </span>
                 </button>
               )}
@@ -408,7 +440,7 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
 
   const handleDestinationSelected = (coords: [number, number], name?: string) => {
     if (onSetDest) {
-      onSetDest(coords);
+      onSetDest(coords, name);
     }
     if (name) {
       const clean = extractCleanPlace(name);
@@ -445,8 +477,8 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
                     ${isNavigating 
                       ? 'hidden' 
                       : isCollapsed
-                      ? 'absolute top-16 left-3 right-3 sm:left-4 sm:right-auto sm:w-[360px] p-3 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200'
-                      : 'absolute top-16 left-2 right-2 sm:left-4 sm:right-auto sm:w-[410px] p-4 sm:p-5 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 max-h-[calc(100dvh-5rem)] overflow-y-auto'}`}>
+                      ? 'absolute top-16 left-3 right-3 sm:left-4 sm:right-auto sm:w-[400px] p-3 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200'
+                      : 'absolute top-16 left-2 right-2 sm:left-4 sm:right-auto sm:w-[480px] md:w-[500px] p-4 sm:p-5 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 max-h-[calc(100dvh-5rem)] overflow-y-auto'}`}>
       {!isNavigating && (
         <div className="flex items-center justify-between mb-3 shrink-0">
           <div className="flex items-center gap-2">
