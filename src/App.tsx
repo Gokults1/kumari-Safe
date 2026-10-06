@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, CloudRain, ThermometerSun, Shield, Smartphone } from 'lucide-react';
+import { ShieldAlert, CloudRain, ThermometerSun, Shield, Smartphone, MapPin } from 'lucide-react';
 import { EmergencyModal } from './components/EmergencyModal';
 import { RoutingPanel } from './components/RoutingPanel';
 import { LeafletMap } from './components/LeafletMap';
@@ -32,13 +32,37 @@ function App() {
     if (name) setDestName(name);
   };
 
-  const handleMapClick = (lat: number, lng: number) => {
+  const handleMapClick = async (lat: number, lng: number) => {
     if (selectionMode === 'ORIGIN') {
-      handleSetOrigin([lat, lng], `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      const defaultName = `📍 Pinned Origin (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      handleSetOrigin([lat, lng], defaultName);
       setSelectionMode(null);
+      try {
+        const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          const p = data.features?.[0]?.properties;
+          if (p?.name || p?.street || p?.city) {
+            const pretty = [p.name || p.street, p.city || p.district].filter(Boolean).join(', ');
+            handleSetOrigin([lat, lng], `📍 ${pretty}`);
+          }
+        }
+      } catch {}
     } else if (selectionMode === 'DEST') {
-      handleSetDest([lat, lng], `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      const defaultName = `📍 Pinned Destination (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      handleSetDest([lat, lng], defaultName);
       setSelectionMode(null);
+      try {
+        const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          const p = data.features?.[0]?.properties;
+          if (p?.name || p?.street || p?.city) {
+            const pretty = [p.name || p.street, p.city || p.district].filter(Boolean).join(', ');
+            handleSetDest([lat, lng], `📍 ${pretty}`);
+          }
+        }
+      } catch {}
     }
   };
 
@@ -154,6 +178,23 @@ function App() {
             )}
           </div>
         </header>
+      )}
+
+      {/* Floating Helper Banner when Pin on Map is Active */}
+      {selectionMode && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[90] bg-slate-900/95 text-white px-4 py-2 rounded-full shadow-2xl border border-emerald-400/60 flex items-center gap-3 backdrop-blur-md animate-bounce">
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+            <MapPin className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <span>Tap anywhere on the map to set {selectionMode === 'DEST' ? 'Destination' : 'Origin'} pin</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectionMode(null)}
+            className="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-700 hover:bg-slate-700 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       )}
 
       {/* Ultra-Fast, 100% Reliable 2D Leaflet Map with Public OpenStreetMap Tiles */}
