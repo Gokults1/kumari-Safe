@@ -310,6 +310,15 @@ interface RoutingPanelProps {
   onSetDest?: (latlng: [number, number], name?: string) => void;
 }
 
+const formatDuration = (totalMins: number): string => {
+  const m = Math.round(totalMins);
+  if (m < 60) return `${m} min`;
+  const hrs = Math.floor(m / 60);
+  const rem = m % 60;
+  if (rem === 0) return `${hrs} hr`;
+  return `${hrs} hr ${rem} min`;
+};
+
 export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   origin,
   dest,
@@ -333,10 +342,9 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   const [preference, setPreference] = useState<'FASTEST' | 'SAFEST' | 'BALANCED'>('BALANCED');
   const [profile, setProfile] = useState<'driving' | 'walking' | 'cycling' | 'transit'>('driving');
   
-  // Transit state (KSRTC, SETC/TNSTC, and Trains)
+  // Transit state (Trains, TNSTC/SETC Tamil Nadu buses, and KSRTC Kerala buses)
   const [destPlace, setDestPlace] = useState('');
-  const [transitTab, setTransitTab] = useState<'ALL' | 'BUS' | 'TRAIN'>('ALL');
-  const [busAgency, setBusAgency] = useState<'ALL' | 'KSRTC' | 'TNSTC'>('ALL');
+  const [transitTab, setTransitTab] = useState<'ALL' | 'TRAIN' | 'TNSTC' | 'KSRTC'>('ALL');
   const [transitQuery, setTransitQuery] = useState('');
   const [trainResults, setTrainResults] = useState<any[]>([]);
   const [busResults, setBusResults] = useState<any[]>([]);
@@ -346,29 +354,16 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
 
   const fetchTransit = async (
     query = transitQuery, 
-    tab = transitTab, 
-    agency = busAgency, 
     dir = trainDirection, 
     stn = trainStation
   ) => {
     setTransitSearching(true);
     try {
       const q = query.trim() || undefined;
-      const promises: Promise<any>[] = [];
-
-      if (tab === 'ALL' || tab === 'TRAIN') {
-        promises.push(searchTrains(q, dir, stn));
-      } else {
-        promises.push(Promise.resolve({ trains: [] }));
-      }
-
-      if (tab === 'ALL' || tab === 'BUS') {
-        promises.push(searchBuses(q, agency, undefined));
-      } else {
-        promises.push(Promise.resolve({ buses: [] }));
-      }
-
-      const [trainRes, busRes] = await Promise.all(promises);
+      const [trainRes, busRes] = await Promise.all([
+        searchTrains(q, dir, stn),
+        searchBuses(q, 'ALL', undefined),
+      ]);
       setTrainResults(trainRes?.trains || []);
       setBusResults(busRes?.buses || []);
     } catch (err) {
@@ -401,24 +396,24 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
         }
       }
       setTransitQuery(nearest.name);
-      fetchTransit(nearest.name, transitTab, busAgency, trainDirection, trainStation);
+      fetchTransit(nearest.name, trainDirection, trainStation);
     } catch (err) {
       console.error(err);
       setTransitQuery('Nagercoil');
-      fetchTransit('Nagercoil', transitTab, busAgency, trainDirection, trainStation);
+      fetchTransit('Nagercoil', trainDirection, trainStation);
     }
   };
 
-const handleTransitSearch = (overrideQuery?: string) => {
+  const handleTransitSearch = (overrideQuery?: string) => {
     const q = overrideQuery !== undefined ? overrideQuery : transitQuery;
-    fetchTransit(q, transitTab, busAgency, trainDirection, trainStation);
+    fetchTransit(q, trainDirection, trainStation);
   };
 
   React.useEffect(() => {
     if (profile === 'transit') {
-      fetchTransit(transitQuery, transitTab, busAgency, trainDirection, trainStation);
+      fetchTransit(transitQuery, trainDirection, trainStation);
     }
-  }, [profile, transitTab, busAgency, trainDirection, trainStation]);
+  }, [profile, trainDirection, trainStation]);
 
   const handleDestinationSelected = (coords: [number, number], name?: string) => {
     if (onSetDest) {
@@ -428,7 +423,7 @@ const handleTransitSearch = (overrideQuery?: string) => {
       const clean = extractCleanPlace(name);
       setDestPlace(clean);
       setTransitQuery(clean);
-      fetchTransit(clean, transitTab, busAgency, trainDirection, trainStation);
+      fetchTransit(clean, trainDirection, trainStation);
     }
   };
 
@@ -637,7 +632,7 @@ const handleTransitSearch = (overrideQuery?: string) => {
                         )}
                       </div>
                       <p className="text-xs text-slate-500 mt-1 font-medium">
-                        <span className="font-bold text-slate-700">{Math.round(r.duration_minutes)} min</span> • {r.distance_km.toFixed(1)} km
+                        <span className="font-bold text-slate-700">{formatDuration(r.duration_minutes)}</span> • {r.distance_km.toFixed(1)} km
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -673,7 +668,7 @@ const handleTransitSearch = (overrideQuery?: string) => {
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 border border-slate-100">
               <div className="text-slate-500 text-xs font-bold mb-1 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> Time</div>
-              <div className="text-2xl font-black text-slate-900">{Math.round(activeRoute.duration_minutes)} <span className="text-sm font-semibold text-slate-500">min</span></div>
+              <div className="text-2xl font-black text-slate-900">{formatDuration(activeRoute.duration_minutes)}</div>
               <div className="text-sm text-slate-500 font-semibold">{activeRoute.distance_km.toFixed(1)} km</div>
             </div>
             
@@ -757,53 +752,39 @@ const handleTransitSearch = (overrideQuery?: string) => {
                 )}
 
                 {/* Transit Type Filter Tabs */}
-                <div className="flex gap-1 bg-white/80 p-1 rounded-xl border border-indigo-100 shadow-2xs">
-                  {[
-                    { id: 'ALL', label: `All (${trainResults.length + busResults.length})` },
-                    { id: 'BUS', label: `Buses (${busResults.length})` },
-                    { id: 'TRAIN', label: `Trains (${trainResults.length})` },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setTransitTab(tab.id as any)}
-                      className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                        transitTab === tab.id
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'text-indigo-800 hover:bg-indigo-50'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
+                {(() => {
+                  const tnstcCount = busResults.filter((b: any) => {
+                    const ag = (b.agency || '').toUpperCase();
+                    return ag.includes('TNSTC') || ag.includes('SETC') || ag.includes('TN GOVT');
+                  }).length;
+                  const ksrtcCount = busResults.filter((b: any) => {
+                    const ag = (b.agency || '').toUpperCase();
+                    return ag.includes('KSRTC');
+                  }).length;
 
-                {/* Bus Agency Selector (KSRTC Kerala vs SETC/TNSTC Tamil Nadu) */}
-                {transitTab !== 'TRAIN' && (
-                  <div className="flex gap-1 items-center">
-                    <span className="text-[10px] text-slate-500 font-bold mr-1 shrink-0">Operator:</span>
-                    {[
-                      { id: 'ALL', label: 'All Buses' },
-                      { id: 'KSRTC', label: 'KSRTC (Kerala)' },
-                      { id: 'TNSTC', label: 'SETC / TNSTC (Tamil Nadu)' },
-                    ].map((ag) => (
-                      <button
-                        key={ag.id}
-                        onClick={() => setBusAgency(ag.id as any)}
-                        className={`text-[10px] px-2.5 py-1 rounded-lg font-bold transition-all border ${
-                          busAgency === ag.id
-                            ? ag.id === 'KSRTC'
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                              : ag.id === 'TNSTC'
-                              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                              : 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        {ag.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white/90 p-1.5 rounded-xl border border-indigo-200 shadow-2xs">
+                      {[
+                        { id: 'ALL', label: `All (${trainResults.length + busResults.length})` },
+                        { id: 'TRAIN', label: `🚆 Trains (${trainResults.length})` },
+                        { id: 'TNSTC', label: `🚌 TNSTC / SETC (${tnstcCount})` },
+                        { id: 'KSRTC', label: `🚌 KSRTC (${ksrtcCount})` },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setTransitTab(tab.id as any)}
+                          className={`py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all text-center truncate ${
+                            transitTab === tab.id
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'text-indigo-900 hover:bg-indigo-50'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Search Bar */}
                 <div className="flex gap-2">
@@ -928,170 +909,191 @@ const handleTransitSearch = (overrideQuery?: string) => {
                 )}
 
                 {/* Results List */}
-                {transitSearching ? (
-                  <div className="text-center py-6 text-indigo-600 text-xs font-semibold flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-                    Finding buses and trains...
-                  </div>
-                ) : (trainResults.length === 0 && busResults.length === 0) ? (
-                  <div className="text-center py-6 text-slate-500 text-xs bg-white rounded-xl border border-slate-200 p-4">
-                    <p className="font-bold text-slate-700 mb-1">No services found for &quot;{transitQuery || 'selection'}&quot;</p>
-                    <p className="text-[11px] text-slate-500">
-                      Try selecting another quick city pill above or clear the filter to see all KSRTC, SETC, and train schedules.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
-                    {/* Bus Results */}
-                    {busResults.map((bus: any, idx: number) => {
-                      const isKsrtc = (bus.agency || '').toUpperCase().includes('KSRTC');
-                      const busNum = bus.route_number || bus.bus_number || `BUS-${idx+1}`;
-                      const fromStop = bus.from_station || bus.from_stop || 'Nagercoil Vadasery';
-                      const toStop = bus.to_station || bus.to_stop || '';
-                      const fareText = bus.fare || (bus.fare_inr ? `₹${bus.fare_inr}` : '');
-                      const boardingStand = bus.kanniyakumari_station || bus.kanniyakumari_stand || bus.from_station_name || fromStop;
-                      const viaList = bus.stops || bus.via_stops || [];
+                {(() => {
+                  const displayedTrains = (transitTab === 'ALL' || transitTab === 'TRAIN') ? trainResults : [];
+                  const displayedBuses = busResults.filter((bus: any) => {
+                    if (transitTab === 'ALL') return true;
+                    const ag = ((bus.agency || '') + ' ' + (bus.bus_name || '')).toUpperCase();
+                    if (transitTab === 'TNSTC') return !ag.includes('KSRTC');
+                    if (transitTab === 'KSRTC') return ag.includes('KSRTC');
+                    return false;
+                  });
 
-                      return (
-                        <div 
-                          key={`bus-${bus.route_number || bus.bus_id || idx}`}
-                          className="bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all"
-                        >
-                          {/* Top Badges */}
-                          <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-[10px] px-2 py-0.5 rounded font-black tracking-wide text-white ${
-                                isKsrtc ? 'bg-emerald-600' : 'bg-amber-600'
-                              }`}>
-                                {isKsrtc ? 'KSRTC Kerala' : 'SETC / TNSTC'}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                                {bus.bus_type}
-                              </span>
-                              <span className="text-[9px] font-semibold text-slate-500">
-                                #{busNum}
-                              </span>
-                            </div>
+                  if (transitSearching) {
+                    return (
+                      <div className="text-center py-6 text-indigo-600 text-xs font-semibold flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                        Finding buses and trains...
+                      </div>
+                    );
+                  }
 
-                            {fareText && (
-                              <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                                {fareText}
-                              </span>
-                            )}
-                          </div>
+                  if (displayedTrains.length === 0 && displayedBuses.length === 0) {
+                    return (
+                      <div className="text-center py-6 text-slate-500 text-xs bg-white rounded-xl border border-slate-200 p-4">
+                        <p className="font-bold text-slate-700 mb-1">
+                          No {transitTab === 'TNSTC' ? 'TNSTC / SETC buses' : transitTab === 'KSRTC' ? 'KSRTC buses' : transitTab === 'TRAIN' ? 'trains' : 'services'} found for &quot;{transitQuery || 'selection'}&quot;
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Try switching filter tabs above or select another quick destination to view all schedules.
+                        </p>
+                      </div>
+                    );
+                  }
 
-                          {/* Route */}
-                          <div className="text-xs text-slate-900 mb-1.5 flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-800">{fromStop}</span>
-                            <span className="text-slate-400 font-bold">&rarr;</span>
-                            <span className="font-extrabold text-indigo-700">{toStop}</span>
-                          </div>
+                  return (
+                    <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
+                      {/* Bus Results */}
+                      {displayedBuses.map((bus: any, idx: number) => {
+                        const isKsrtc = (bus.agency || '').toUpperCase().includes('KSRTC');
+                        const busNum = bus.route_number || bus.bus_number || `BUS-${idx+1}`;
+                        const fromStop = bus.from_station || bus.from_stop || 'Nagercoil Vadasery';
+                        const toStop = bus.to_station || bus.to_stop || '';
+                        const fareText = bus.fare || (bus.fare_inr ? `₹${bus.fare_inr}` : '');
+                        const boardingStand = bus.kanniyakumari_station || bus.kanniyakumari_stand || bus.from_station_name || fromStop;
+                        const viaList = bus.stops || bus.via_stops || [];
 
-                          {/* Timings & Platform */}
-                          <div className="flex justify-between items-center flex-wrap gap-1 text-[11px] mb-1.5">
-                            <div className="flex gap-2">
-                              <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                                Dep: {bus.departure}
-                              </span>
-                              <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                                Arr: {bus.arrival}
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                              {bus.frequency || 'Daily'}
-                            </span>
-                          </div>
+                        return (
+                          <div 
+                            key={`bus-${bus.route_number || bus.bus_id || idx}`}
+                            className="bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all"
+                          >
+                            {/* Top Badges */}
+                            <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-black tracking-wide text-white ${
+                                  isKsrtc ? 'bg-emerald-600' : 'bg-amber-600'
+                                }`}>
+                                  {isKsrtc ? 'KSRTC Kerala' : 'SETC / TNSTC'}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {bus.bus_type}
+                                </span>
+                                <span className="text-[9px] font-semibold text-slate-500">
+                                  #{busNum}
+                                </span>
+                              </div>
 
-                          {/* Boarding Stand / Hub */}
-                          {boardingStand && (
-                            <div className="mt-1 mb-1 text-[10px] text-emerald-900 font-semibold bg-emerald-50/70 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1.5">
-                              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Boarding Stand: <strong className="text-emerald-950">{boardingStand}</strong></span>
-                            </div>
-                          )}
-
-                          {/* Via Stops */}
-                          {viaList && viaList.length > 0 && (
-                            <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                              <p className="text-[10px] text-slate-500 leading-relaxed">
-                                <span className="font-bold text-slate-700">Via: </span>
-                                {viaList.join(' \u2192 ')}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Train Results */}
-                    {trainResults.map((train: any, idx: number) => {
-                      const isGoing = train.direction === 'DEPARTING';
-                      return (
-                        <div 
-                          key={`train-${train.train_number || idx}`}
-                          className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs hover:border-indigo-300 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="bg-indigo-700 text-white text-[10px] px-1.5 py-0.5 rounded font-black tracking-wide">
-                                {train.train_number}
-                              </span>
-                              <span className="font-bold text-slate-900 text-xs leading-snug">
-                                {train.train_name}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                                isGoing ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                {isGoing ? 'Going' : 'Coming'}
-                              </span>
-                              {train.kanniyakumari_station && (
-                                <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded">
-                                  {train.kanniyakumari_station}
+                              {fareText && (
+                                <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                                  {fareText}
                                 </span>
                               )}
                             </div>
-                          </div>
 
-                          <div className="text-xs text-slate-700 mb-1.5 flex items-center gap-1 flex-wrap">
-                            <span className="font-bold text-indigo-700">{train.from_station_name || train.from_station}</span>
-                            <span className="text-slate-400 font-bold">&rarr;</span>
-                            <span className="font-bold text-emerald-700">{train.to_station}</span>
-                          </div>
+                            {/* Route */}
+                            <div className="text-xs text-slate-900 mb-1.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800">{fromStop}</span>
+                              <span className="text-slate-400 font-bold">&rarr;</span>
+                              <span className="font-extrabold text-indigo-700">{toStop}</span>
+                            </div>
 
-                          <div className="flex justify-between items-center flex-wrap gap-1 text-[11px] mb-1.5">
-                            <div className="flex gap-2">
-                              <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                                Dep: {train.departure}
-                              </span>
-                              <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                                Arr: {train.arrival}
+                            {/* Timings & Platform */}
+                            <div className="flex justify-between items-center flex-wrap gap-1 text-[11px] mb-1.5">
+                              <div className="flex gap-2">
+                                <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                  Dep: {bus.departure}
+                                </span>
+                                <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                  Arr: {bus.arrival}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                {bus.frequency || 'Daily'}
                               </span>
                             </div>
-                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                              {train.days}
-                            </span>
-                          </div>
 
-                          {train.stops && train.stops.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-100">
-                              <p className="text-[10px] text-slate-500 leading-relaxed">
-                                <span className="font-bold text-slate-700">Route: </span>
-                                {train.stops.map((s: string, sidx: number) => (
-                                  <React.Fragment key={sidx}>
-                                    <span>{s}</span>
-                                    {sidx < train.stops.length - 1 && <span className="text-slate-400 font-bold mx-1">&rarr;</span>}
-                                  </React.Fragment>
-                                ))}
-                              </p>
+                            {/* Boarding Stand / Hub */}
+                            {boardingStand && (
+                              <div className="mt-1 mb-1 text-[10px] text-emerald-900 font-semibold bg-emerald-50/70 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1.5">
+                                <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>Boarding Stand: <strong className="text-emerald-950">{boardingStand}</strong></span>
+                              </div>
+                            )}
+
+                            {/* Via Stops */}
+                            {viaList && viaList.length > 0 && (
+                              <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                                <p className="text-[10px] text-slate-500 leading-relaxed">
+                                  <span className="font-bold text-slate-700">Via: </span>
+                                  {viaList.join(' \u2192 ')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Train Results */}
+                      {displayedTrains.map((train: any, idx: number) => {
+                        const isGoing = train.direction === 'DEPARTING';
+                        return (
+                          <div 
+                            key={`train-${train.train_number || idx}`}
+                            className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs hover:border-indigo-300 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-1.5 mb-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="bg-indigo-700 text-white text-[10px] px-1.5 py-0.5 rounded font-black tracking-wide">
+                                  {train.train_number}
+                                </span>
+                                <span className="font-bold text-slate-900 text-xs leading-snug">
+                                  {train.train_name}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                  isGoing ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {isGoing ? 'Going' : 'Coming'}
+                                </span>
+                                {train.kanniyakumari_station && (
+                                  <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                    {train.kanniyakumari_station}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+
+                            <div className="text-xs text-slate-700 mb-1.5 flex items-center gap-1 flex-wrap">
+                              <span className="font-bold text-indigo-700">{train.from_station_name || train.from_station}</span>
+                              <span className="text-slate-400 font-bold">&rarr;</span>
+                              <span className="font-bold text-emerald-700">{train.to_station}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center flex-wrap gap-1 text-[11px] mb-1.5">
+                              <div className="flex gap-2">
+                                <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                  Dep: {train.departure}
+                                </span>
+                                <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                  Arr: {train.arrival}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                {train.days}
+                              </span>
+                            </div>
+
+                            {train.stops && train.stops.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-slate-100">
+                                <p className="text-[10px] text-slate-500 leading-relaxed">
+                                  <span className="font-bold text-slate-700">Route: </span>
+                                  {train.stops.map((s: string, sidx: number) => (
+                                    <React.Fragment key={sidx}>
+                                      <span>{s}</span>
+                                      {sidx < train.stops.length - 1 && <span className="text-slate-400 font-bold mx-1">&rarr;</span>}
+                                    </React.Fragment>
+                                  ))}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             )}
            
