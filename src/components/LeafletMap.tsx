@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LocateFixed } from 'lucide-react';
-import { getAccuratePosition } from '../geo';
+import { getAccuratePosition, formatDuration } from '../geo';
 
 interface LeafletMapProps {
   origin: [number, number] | null;
@@ -139,7 +139,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       });
 
       polyline.bindTooltip(
-        `${route.label || `Route ${idx + 1}`} • ${route.distance_km} km (${Math.round(route.duration_minutes)} min)`,
+        `${route.label || `Route ${idx + 1}`} • ${route.distance_km} km (${formatDuration(route.duration_minutes)})`,
         { sticky: true, className: 'font-sans font-bold text-xs shadow-md' }
       );
 

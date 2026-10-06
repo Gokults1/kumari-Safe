@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Navigation, ShieldCheck, Clock, Activity, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Search, Train, Bus, MapPin, Sparkles, LocateFixed } from 'lucide-react';
 import { getDirections, getMultimodalHubs, searchTrains, searchBuses } from '../api';
-import { getAccuratePosition, getCurrentPosition } from '../geo';
+import { getAccuratePosition, getCurrentPosition, formatDuration } from '../geo';
 
 // Utility to clean place names for transit search (e.g. "Trivandrum Central, Kerala" -> "Trivandrum")
 export function extractCleanPlace(str: string): string {
@@ -309,15 +309,6 @@ interface RoutingPanelProps {
   onSetOrigin?: (latlng: [number, number], name?: string) => void;
   onSetDest?: (latlng: [number, number], name?: string) => void;
 }
-
-const formatDuration = (totalMins: number): string => {
-  const m = Math.round(totalMins);
-  if (m < 60) return `${m} min`;
-  const hrs = Math.floor(m / 60);
-  const rem = m % 60;
-  if (rem === 0) return `${hrs} hr`;
-  return `${hrs} hr ${rem} min`;
-};
 
 export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   origin,
