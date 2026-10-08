@@ -13,7 +13,7 @@ interface LeafletMapProps {
   selectedRouteIndex: number;
   onSelectRouteIndex: (idx: number) => void;
   isNavigating: boolean;
-  onMapClick: (lat: number, lng: number) => void;
+  onMapClick?: (lat: number, lng: number) => void;
   policeStations?: any[];
   cctvs?: any[];
   hazards?: any[];
@@ -47,6 +47,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const prevOriginRef = useRef<[number, number] | null>(null);
   const prevDestRef = useRef<[number, number] | null>(null);
 
+  // Keep fresh references to avoid React hook stale closure issues
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
+
   // Initialize Leaflet Map once
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -73,9 +79,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     polylinesLayerGroupRef.current = L.layerGroup().addTo(map);
     markersLayerGroupRef.current = L.layerGroup().addTo(map);
 
-    // Map click handler
+    // Map click handler - ALWAYS calls fresh onMapClickRef
     map.on('click', (e: L.LeafletMouseEvent) => {
-      onMapClick(e.latlng.lat, e.latlng.lng);
+      if (onMapClickRef.current) {
+        onMapClickRef.current(e.latlng.lat, e.latlng.lng);
+      }
     });
 
     mapRef.current = map;
