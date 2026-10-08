@@ -49,7 +49,7 @@ export function getTransportBadge(properties: any): { text: string; className: s
   };
 }
 
-export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, onSetMode }: any) => {
+export const LocationSearch = ({ placeholder, onSelect, value, mode }: any) => {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -161,24 +161,8 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
   };
 
   return (
-    <div className={`relative w-full flex flex-col p-4 rounded-2xl border transition-all ${isActive ? 'bg-slate-100 ring-2 ring-blue-500/30' : 'bg-slate-50 border-slate-100'}`}>
+    <div className="relative w-full flex flex-col p-4 bg-slate-50 rounded-2xl border border-slate-100">
       <div className="flex gap-2 items-center">
-        <button 
-          type="button"
-          onClick={() => onSetMode(isActive ? null : mode)} 
-          title={mode === 'DEST' ? "Pin destination on the map" : "Pin origin on the map"}
-          className={`text-xs px-2.5 py-2 transition-all rounded-xl font-bold flex items-center gap-1.5 shrink-0 ${
-            isActive 
-              ? 'bg-rose-600 text-white shadow-md animate-pulse ring-2 ring-rose-400' 
-              : mode === 'DEST'
-              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
-              : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300'
-          }`}
-        >
-          <MapPin className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : mode === 'DEST' ? 'text-emerald-600' : 'text-blue-600'}`} />
-          <span className="text-[11px] font-bold whitespace-nowrap">{isActive ? 'Tap Map...' : 'Pin on Map'}</span>
-        </button>
-
         <div className="relative flex-1">
           <input 
             type="text" 
@@ -223,30 +207,6 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode, isActive, o
                   </div>
                   <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
                     GPS
-                  </span>
-                </button>
-              )}
-
-              {/* Option 2: Pin Destination on Map - for DEST mode */}
-              {mode === 'DEST' && (
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onSetMode('DEST');
-                    setShowSuggestions(false);
-                  }}
-                  className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
-                >
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-emerald-300">Choose / Pin Destination on Map</p>
-                      <p className="text-[10px] text-slate-400">Click anywhere on the map to set destination</p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
-                    Map Pin
                   </span>
                 </button>
               )}
@@ -327,8 +287,6 @@ interface RoutingPanelProps {
   dest: [number, number] | null;
   originName?: string;
   destName?: string;
-  onSetMode: (mode: 'ORIGIN' | 'DEST' | null) => void;
-  selectionMode: 'ORIGIN' | 'DEST' | null;
   onRoutesFound: (data: any) => void;
   onMultimodalFound: (data: any) => void;
   routesData?: any;
@@ -347,8 +305,6 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   dest,
   originName,
   destName,
-  onSetMode,
-  selectionMode,
   onRoutesFound,
   onMultimodalFound,
   routesData,
@@ -470,6 +426,32 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
     setLoading(false);
   };
 
+  // Auto-search routes whenever origin and destination are both set or updated
+  const prevRouteKeyRef = React.useRef<string>('');
+  React.useEffect(() => {
+    if (origin && dest) {
+      const key = `${origin[0].toFixed(5)},${origin[1].toFixed(5)}->${dest[0].toFixed(5)},${dest[1].toFixed(5)}-${profile}-${preference}`;
+      if (prevRouteKeyRef.current === key) return;
+      prevRouteKeyRef.current = key;
+
+      setLoading(true);
+      getDirections(origin, dest, preference, profile)
+        .then((routeData) => {
+          onRoutesFound(routeData);
+        })
+        .catch((err) => {
+          console.error("Route fetch failed:", err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+
+      getMultimodalHubs(origin, dest)
+        .then((m) => onMultimodalFound(m))
+        .catch(() => {});
+    }
+  }, [origin, dest, profile, preference]);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -503,16 +485,12 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
               onSelect={onSetOrigin} 
               value={originName || (origin ? `${origin[0].toFixed(4)}, ${origin[1].toFixed(4)}` : '')} 
               mode="ORIGIN" 
-              isActive={selectionMode === 'ORIGIN'} 
-              onSetMode={onSetMode} 
             />
             <LocationSearch 
               placeholder="Search destination..." 
               onSelect={handleDestinationSelected} 
               value={destName || destPlace || (dest ? `${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}` : '')} 
               mode="DEST" 
-              isActive={selectionMode === 'DEST'} 
-              onSetMode={onSetMode} 
             />
           </div>
 
