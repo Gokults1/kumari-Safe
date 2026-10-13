@@ -601,10 +601,10 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
                   </div>
 
                   {/* Stations List with smooth sliding & no nested scroll lock */}
-                  <div className="flex flex-col gap-2.5 max-h-[380px] sm:max-h-[460px] overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar pr-1 pb-1">
+                  <div className="flex flex-col gap-2.5 max-h-[420px] sm:max-h-[480px] overflow-y-auto touch-pan-y custom-scrollbar pr-1 pb-1">
                     {/* 📍 Nearest Police Station to You - Highlighted Top Card */}
                     {nearestStation && (
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-2xl p-3 sm:p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 w-full">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <span className="text-[11px] font-black text-blue-900 flex items-center gap-1">
@@ -640,7 +640,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
                     {filteredStations.map((station: any, idx: number) => {
                       const isExpanded = expandedStation === idx;
                       return (
-                        <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all">
+                        <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all shrink-0 w-full min-h-[64px]">
                           {/* Station Header */}
                           <div className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
@@ -665,14 +665,14 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
                                 <button
                                   type="button"
                                   onClick={() => setExpandedStation(isExpanded ? null : idx)}
-                                  className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs transition-colors flex items-center gap-1 ${
+                                  className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer ${
                                     isExpanded 
                                       ? 'bg-blue-100 text-blue-800 border-blue-300' 
                                       : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                                   }`}
                                   title="View Officers on Duty"
                                 >
-                                  <span>{isExpanded ? 'Hide' : 'Officers'}</span>
+                                  <span>{isExpanded ? 'Hide' : `Officers (${station.staff_directory.length})`}</span>
                                   {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 </button>
                               )}
@@ -681,14 +681,14 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({ isOpen, onClose,
 
                           {/* Expandable Staff Directory - Completely Visible With No Squeezing */}
                           {isExpanded && station.staff_directory && station.staff_directory.length > 0 && (
-                            <div className="border-t border-blue-100 bg-blue-50/60 p-3 flex flex-col gap-2">
+                            <div className="border-t border-blue-100 bg-blue-50/60 p-3 flex flex-col gap-2 shrink-0 w-full">
                               <p className="text-[10px] font-black text-blue-900 uppercase tracking-widest flex items-center gap-1 mb-0.5">
                                 <Users className="w-3.5 h-3.5 text-blue-600" /> Officers & Duty Staff ({station.staff_directory.length})
                               </p>
                               {station.staff_directory.map((staff: any, sidx: number) => (
                                 <div 
                                   key={sidx} 
-                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-blue-100 shadow-xs"
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-blue-100 shadow-xs shrink-0 w-full"
                                 >
                                   <div className="min-w-0 flex-1">
                                     <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug break-words">
