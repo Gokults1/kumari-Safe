@@ -14,6 +14,9 @@ interface LeafletMapProps {
   onSelectRouteIndex: (idx: number) => void;
   isNavigating: boolean;
   onMapClick?: (lat: number, lng: number) => void;
+  pinMode?: 'ORIGIN' | 'DEST' | null;
+  onSetOrigin?: (coords: [number, number], name?: string) => void;
+  onSetDest?: (coords: [number, number], name?: string) => void;
   policeStations?: any[];
   cctvs?: any[];
   hazards?: any[];
@@ -30,6 +33,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onSelectRouteIndex,
   isNavigating,
   onMapClick,
+  pinMode = null,
+  onSetOrigin,
+  onSetDest,
   policeStations = [],
   cctvs = [],
   hazards = [],
@@ -52,6 +58,30 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
+
+  const pinModeRef = useRef(pinMode);
+  useEffect(() => {
+    pinModeRef.current = pinMode;
+    const map = mapRef.current;
+    if (map) {
+      const container = map.getContainer();
+      if (pinMode) {
+        container.style.cursor = 'crosshair';
+      } else {
+        container.style.cursor = '';
+      }
+    }
+  }, [pinMode]);
+
+  const onSetOriginRef = useRef(onSetOrigin);
+  useEffect(() => {
+    onSetOriginRef.current = onSetOrigin;
+  }, [onSetOrigin]);
+
+  const onSetDestRef = useRef(onSetDest);
+  useEffect(() => {
+    onSetDestRef.current = onSetDest;
+  }, [onSetDest]);
 
   // Initialize Leaflet Map once
   useEffect(() => {
@@ -81,8 +111,65 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     // Map click handler - ALWAYS calls fresh onMapClickRef
     map.on('click', (e: L.LeafletMouseEvent) => {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      // 1. If in active Pin on Map mode, directly trigger selection
+      if (pinModeRef.current) {
+        if (onMapClickRef.current) {
+          onMapClickRef.current(lat, lng);
+        }
+        return;
+      }
+
+      // 2. If parent has onMapClick handler, invoke it
       if (onMapClickRef.current) {
-        onMapClickRef.current(e.latlng.lat, e.latlng.lng);
+        onMapClickRef.current(lat, lng);
+      }
+
+      // 3. Drop an interactive quick-action popup to set Origin or Destination
+      if (!isNavigating) {
+        const popupContent = document.createElement('div');
+        popupContent.style.cssText = 'font-family:system-ui,-apple-system,sans-serif; min-width:170px; padding:4px 2px;';
+        popupContent.innerHTML = `
+          <div style="font-weight:800; font-size:12px; margin-bottom:8px; color:#0f172a; display:flex; align-items:center; gap:4px;">
+            <span>📍 Map Location</span>
+            <span style="font-size:10px; color:#64748b; font-weight:600;">(${lat.toFixed(4)}, ${lng.toFixed(4)})</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button id="leaflet-btn-origin" style="background:#2563eb; color:white; border:none; border-radius:8px; padding:7px 10px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+              <span>📍 Set as Origin (Start)</span>
+            </button>
+            <button id="leaflet-btn-dest" style="background:#e11d48; color:white; border:none; border-radius:8px; padding:7px 10px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,0.15);">
+              <span>🏁 Set as Destination</span>
+            </button>
+          </div>
+        `;
+
+        L.popup({ offset: [0, -10], closeButton: true })
+          .setLatLng(e.latlng)
+          .setContent(popupContent)
+          .openOn(map);
+
+        const btnOrigin = popupContent.querySelector('#leaflet-btn-origin');
+        const btnDest = popupContent.querySelector('#leaflet-btn-dest');
+
+        if (btnOrigin) {
+          btnOrigin.addEventListener('click', () => {
+            map.closePopup();
+            if (onSetOriginRef.current) {
+              onSetOriginRef.current([lat, lng]);
+            }
+          });
+        }
+        if (btnDest) {
+          btnDest.addEventListener('click', () => {
+            map.closePopup();
+            if (onSetDestRef.current) {
+              onSetDestRef.current([lat, lng]);
+            }
+          });
+        }
       }
     });
 
@@ -141,8 +228,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         lineJoin: 'round'
       });
 
-      // Click to select route
-      polyline.on('click', () => {
+      // Click to select route, or forward to pinMode handler if active
+      polyline.on('click', (e: L.LeafletMouseEvent) => {
+        if (pinModeRef.current) {
+          L.DomEvent.stopPropagation(e);
+          if (onMapClickRef.current) {
+            onMapClickRef.current(e.latlng.lat, e.latlng.lng);
+          }
+          return;
+        }
         onSelectRouteIndex(idx);
       });
 

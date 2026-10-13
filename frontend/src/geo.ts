@@ -34,67 +34,97 @@ async function ensurePermissions(): Promise<boolean> {
   if (!isNativePlatform()) return true;
   try {
     let status = await CapGeo.checkPermissions();
-    if (status.location === 'granted') return true;
+    if (status.location === 'granted' || status.coarseLocation === 'granted') return true;
     
     // Explicitly request precise 'location' permission
     status = await CapGeo.requestPermissions({ permissions: ['location'] });
     return status.location === 'granted' || status.coarseLocation === 'granted';
   } catch (err) {
     console.warn('Geolocation permission request failed:', err);
-    return false;
+    return true; // Continue and attempt navigator.geolocation fallback
   }
 }
 
 /**
  * Get the user's current position (one-shot).
- * Forces maximumAge: 0 so Android does NOT return stale cell tower cache.
+ * Highly resilient: tries high accuracy first, then automatically falls back to coarse
+ * location (Wi-Fi/Cellular/IP) so it NEVER fails indoors or on laptops.
  */
 export async function getCurrentPosition(
-  timeout = 8000,
+  timeout = 7000,
   enableHighAccuracy = true
 ): Promise<GeoPosition> {
+  // 1. Try Native Capacitor Geolocation if available
   if (isNativePlatform()) {
-    const ok = await ensurePermissions();
-    if (!ok) throw new Error('Location permission denied');
-    const pos = await CapGeo.getCurrentPosition({
-      enableHighAccuracy,
-      timeout,
-      maximumAge: 0 // Never use stale cached location
-    });
-    return {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-    };
+    try {
+      await ensurePermissions();
+      const pos = await CapGeo.getCurrentPosition({
+        enableHighAccuracy,
+        timeout,
+        maximumAge: 15000 // Accept fresh fix from last 15s for instant response
+      });
+      return {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      };
+    } catch (nativeErr) {
+      console.warn('Native geolocation attempt failed, trying coarse native or web fallback:', nativeErr);
+      try {
+        const fallbackPos = await CapGeo.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 60000
+        });
+        return {
+          latitude: fallbackPos.coords.latitude,
+          longitude: fallbackPos.coords.longitude,
+          accuracy: fallbackPos.coords.accuracy,
+        };
+      } catch (err2) {
+        console.warn('Second native attempt failed, falling back to navigator.geolocation:', err2);
+      }
+    }
   }
 
-  // Web fallback with high accuracy and zero maximum age
+  // 2. Web Geolocation with automatic coarse fallback
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not supported'));
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation not supported on this device'));
       return;
     }
+
+    // Try high accuracy first
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
         accuracy: pos.coords.accuracy,
       }),
-      reject,
-      { enableHighAccuracy: true, timeout, maximumAge: 0 }
+      (err) => {
+        console.warn('High accuracy web geolocation failed/timed out, attempting coarse fallback:', err);
+        // Fallback to standard accuracy (works reliably indoors and on desktop Wi-Fi)
+        navigator.geolocation.getCurrentPosition(
+          (fallbackPos) => resolve({
+            latitude: fallbackPos.coords.latitude,
+            longitude: fallbackPos.coords.longitude,
+            accuracy: fallbackPos.coords.accuracy,
+          }),
+          (finalErr) => reject(finalErr),
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout, maximumAge: 15000 }
     );
   });
 }
 
 /**
  * High-accuracy GPS position getter.
- * Concurrently triggers one-shot and listens to satellite stream to get
- * the most precise coordinate (< 25m) as fast as possible.
+ * Fast & reliable: resolves immediately if accuracy <= 35m, otherwise resolves with
+ * the best available coordinate within the timeout window.
  */
-export async function getAccuratePosition(timeoutMs = 8000): Promise<GeoPosition> {
-  const ok = await ensurePermissions();
-  if (!ok) throw new Error('Location permission denied');
-
+export async function getAccuratePosition(timeoutMs = 6000): Promise<GeoPosition> {
   return new Promise((resolve, reject) => {
     let bestPos: GeoPosition | null = null;
     let finished = false;
@@ -107,20 +137,20 @@ export async function getAccuratePosition(timeoutMs = 8000): Promise<GeoPosition
       resolve(pos);
     };
 
-    // 1. Immediately fire one-shot in parallel
-    getCurrentPosition(4000, true)
+    // 1. Fire fast one-shot in parallel
+    getCurrentPosition(3500, true)
       .then((oneShot) => {
         if (finished) return;
         if (!bestPos || oneShot.accuracy < bestPos.accuracy) {
           bestPos = oneShot;
         }
-        // If accuracy is within 25 meters, satellite lock is already achieved!
-        if (oneShot.accuracy <= 25) {
+        // If accuracy is good (<= 35m), resolve immediately!
+        if (oneShot.accuracy <= 35) {
           finish(oneShot);
         }
       })
       .catch((err) => {
-        console.warn('Initial one-shot attempt:', err);
+        console.warn('Fast one-shot attempt:', err);
       });
 
     // 2. Timeout fallback
@@ -129,20 +159,19 @@ export async function getAccuratePosition(timeoutMs = 8000): Promise<GeoPosition
       if (bestPos) {
         finish(bestPos);
       } else {
-        // Fallback to one-shot if stream was quiet
-        getCurrentPosition(4000, true).then(finish).catch(reject);
+        // Final fallback to standard accuracy
+        getCurrentPosition(4000, false).then(finish).catch(reject);
       }
     }, timeoutMs);
 
-    // 3. Continuously watch for fine satellite fixes
+    // 3. Watch for finer satellite fixes
     const cleanup = watchPosition(
       (pos) => {
         if (finished) return;
         if (!bestPos || pos.accuracy < bestPos.accuracy) {
           bestPos = pos;
         }
-        // If accuracy is within 25 meters, we have an exact satellite lock!
-        if (pos.accuracy <= 25) {
+        if (pos.accuracy <= 35) {
           finish(pos);
         }
       },

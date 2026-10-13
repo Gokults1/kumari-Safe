@@ -16,6 +16,9 @@ function App() {
   const [routesData, setRoutesData] = useState<any>(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
 
+  const [pinMode, setPinMode] = useState<'ORIGIN' | 'DEST' | null>(null);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+
   const [isNavigating, setIsNavigating] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number>(0);
@@ -23,12 +26,40 @@ function App() {
   const handleSetOrigin = (coords: [number, number], name?: string) => {
     setOrigin(coords);
     setUserLocation(coords);
-    if (name) setOriginName(name);
+    setOriginName(name || `Pinned (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`);
   };
 
   const handleSetDest = (coords: [number, number], name?: string) => {
     setDest(coords);
-    if (name) setDestName(name);
+    setDestName(name || `Pinned (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`);
+  };
+
+  const handleMapClick = async (lat: number, lng: number) => {
+    if (!pinMode) return;
+
+    let placeName = `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    try {
+      const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
+      if (res.ok) {
+        const data = await res.json();
+        const feat = data?.features?.[0];
+        if (feat?.properties) {
+          const p = feat.properties;
+          placeName = [p.name, p.street, p.city || p.town || p.district].filter(Boolean).join(', ') || placeName;
+        }
+      }
+    } catch (e) {
+      console.warn('Reverse geocode failed, using default coords label:', e);
+    }
+
+    if (pinMode === 'ORIGIN') {
+      handleSetOrigin([lat, lng], placeName);
+    } else if (pinMode === 'DEST') {
+      handleSetDest([lat, lng], placeName);
+    }
+
+    setPinMode(null);
+    setIsPanelCollapsed(false);
   };
 
   const routes = routesData?.routes || [];
@@ -37,7 +68,7 @@ function App() {
 
   // Try to get user location on app load so map centers on user without pre-locking origin
   useEffect(() => {
-    getCurrentPosition(6000, true)
+    getCurrentPosition(7000, true)
       .then((pos) => {
         setUserLocation([pos.latitude, pos.longitude]);
       })
@@ -145,6 +176,26 @@ function App() {
         </header>
       )}
 
+      {/* Interactive Map Pinning Floating Guide Banner */}
+      {pinMode && !isNavigating && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[110] bg-slate-900/95 backdrop-blur-md text-white border-2 border-amber-400 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-3 animate-pulse">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+          <span className="text-xs sm:text-sm font-black text-amber-300">
+            Tap anywhere on map to set {pinMode === 'ORIGIN' ? '📍 Origin' : '🏁 Destination'}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setPinMode(null);
+              setIsPanelCollapsed(false);
+            }}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-600 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Ultra-Fast, 100% Reliable 2D Leaflet Map with Public OpenStreetMap Tiles */}
       <LeafletMap
         origin={origin}
@@ -155,6 +206,10 @@ function App() {
         selectedRouteIndex={selectedRouteIndex}
         onSelectRouteIndex={setSelectedRouteIndex}
         isNavigating={isNavigating}
+        pinMode={pinMode}
+        onMapClick={handleMapClick}
+        onSetOrigin={handleSetOrigin}
+        onSetDest={handleSetDest}
         policeStations={activeRoute?.police_stations || activeRoute?.safety_context?.facilities_within_corridor?.filter((f: any) => f.facility?.facility_type === 'POLICE').map((f: any) => f.facility)}
         cctvs={activeRoute?.cctvs || activeRoute?.safety_context?.facilities_within_corridor?.filter((f: any) => f.facility?.facility_type === 'CCTV').map((f: any) => f.facility)}
         hazards={activeRoute?.hazards || activeRoute?.safety_context?.hazards}
@@ -180,6 +235,10 @@ function App() {
           dest={dest} 
           originName={originName} 
           destName={destName} 
+          pinMode={pinMode}
+          onSetPinMode={setPinMode}
+          isCollapsed={isPanelCollapsed}
+          onSetIsCollapsed={setIsPanelCollapsed}
           onRoutesFound={(data) => {
             setRoutesData(data);
             setSelectedRouteIndex(0);

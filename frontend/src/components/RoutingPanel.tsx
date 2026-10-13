@@ -49,7 +49,7 @@ export function getTransportBadge(properties: any): { text: string; className: s
   };
 }
 
-export const LocationSearch = ({ placeholder, onSelect, value, mode }: any) => {
+export const LocationSearch = ({ placeholder, onSelect, value, mode, onPinClick, isPinning }: any) => {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -116,31 +116,64 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode }: any) => {
   const handleUseCurrentLocation = async () => {
     setLocating(true);
     try {
-      // 1. Mark GPS as selected so autocomplete dropdown NEVER opens or overwrites it
       isGpsSelectedRef.current = true;
       setShowSuggestions(false);
       setSuggestions([]);
 
-      // 2. High-precision fresh GPS satellite fix (maximumAge: 0)
-      const pos = await getAccuratePosition(8000);
+      // 1. Resilient GPS position fix with automatic coarse fallback
+      const pos = await getAccuratePosition(6000);
       const lat = pos.latitude;
       const lon = pos.longitude;
       const coords: [number, number] = [lat, lon];
-      const acc = Math.round(pos.accuracy || 10);
-      const exactLabel = `📍 Exact GPS (${lat.toFixed(5)}, ${lon.toFixed(5)}) ±${acc}m`;
+      
+      let label = `📍 Current Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
 
-      // 3. Immediately lock exact GPS coordinates and update parent
-      setQuery(exactLabel);
+      // 2. Reverse geocode to friendly human-readable street/place name
+      try {
+        const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`);
+        if (res.ok) {
+          const data = await res.json();
+          const p = data.features?.[0]?.properties;
+          if (p?.name || p?.street || p?.city) {
+            const pretty = [p.name || p.street, p.city || p.district].filter(Boolean).join(', ');
+            label = `📍 ${pretty}`;
+          }
+        }
+      } catch (geocodeErr) {
+        console.warn('Reverse geocode error:', geocodeErr);
+      }
+
+      setQuery(label);
       setShowSuggestions(false);
       setSuggestions([]);
       if (onSelect) {
-        onSelect(coords, exactLabel);
+        onSelect(coords, label);
       }
     } catch (err) {
-      console.error('Location error:', err);
-      alert('Could not access satellite GPS. Please ensure Location is enabled in High Accuracy mode.');
+      console.warn('Primary location acquisition error, attempting browser standard fallback:', err);
+      // Secondary fallback directly via browser navigator.geolocation
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            const coords: [number, number] = [lat, lon];
+            const fallbackLabel = `📍 Current Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+            setQuery(fallbackLabel);
+            if (onSelect) onSelect(coords, fallbackLabel);
+          },
+          (finalErr) => {
+            console.error('Final location error:', finalErr);
+            alert('Could not determine current location. Please verify location permissions in your browser or device settings.');
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
+      } else {
+        alert('Could not access current location. Please check browser GPS permissions.');
+      }
+    } finally {
+      setLocating(false);
     }
-    setLocating(false);
   };
 
   const handleSearch = async () => {
@@ -161,8 +194,29 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode }: any) => {
   };
 
   return (
-    <div className="relative w-full flex flex-col p-4 bg-slate-50 rounded-2xl border border-slate-100">
+    <div className={`relative w-full flex flex-col p-4 rounded-2xl border transition-all ${
+      isPinning ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-400/40 shadow-sm' : 'bg-slate-50 border-slate-100'
+    }`}>
       <div className="flex gap-2 items-center">
+        {/* Pin on Map Button */}
+        {onPinClick && (
+          <button 
+            type="button"
+            onClick={onPinClick} 
+            title={mode === 'DEST' ? "Pin destination on the map" : "Pin starting point on the map"}
+            className={`text-xs px-2.5 py-2 transition-all rounded-xl font-bold flex items-center gap-1.5 shrink-0 shadow-2xs ${
+              isPinning 
+                ? 'bg-rose-600 text-white shadow-md animate-pulse ring-2 ring-rose-400' 
+                : mode === 'DEST'
+                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300'
+                : 'bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300'
+            }`}
+          >
+            <MapPin className={`w-3.5 h-3.5 shrink-0 ${isPinning ? 'text-white' : mode === 'DEST' ? 'text-emerald-700' : 'text-blue-700'}`} />
+            <span className="text-[11px] font-bold whitespace-nowrap">{isPinning ? 'Tap Map...' : 'Pin on Map'}</span>
+          </button>
+        )}
+
         <div className="relative flex-1">
           <input 
             type="text" 
@@ -207,6 +261,32 @@ export const LocationSearch = ({ placeholder, onSelect, value, mode }: any) => {
                   </div>
                   <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
                     GPS
+                  </span>
+                </button>
+              )}
+
+              {/* Option 2: Pin on Map inside dropdown */}
+              {onPinClick && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowSuggestions(false);
+                    onPinClick();
+                  }}
+                  className="w-full text-left p-2.5 bg-slate-800/90 hover:bg-emerald-950/80 transition-colors flex items-center justify-between gap-2 text-white border-b border-slate-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-300">
+                        {mode === 'DEST' ? 'Pin Destination on Map' : 'Pin Origin on Map'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">Tap anywhere on map to select</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase">
+                    Map Pin
                   </span>
                 </button>
               )}
@@ -287,6 +367,10 @@ interface RoutingPanelProps {
   dest: [number, number] | null;
   originName?: string;
   destName?: string;
+  pinMode?: 'ORIGIN' | 'DEST' | null;
+  onSetPinMode?: (mode: 'ORIGIN' | 'DEST' | null) => void;
+  isCollapsed?: boolean;
+  onSetIsCollapsed?: (collapsed: boolean) => void;
   onRoutesFound: (data: any) => void;
   onMultimodalFound: (data: any) => void;
   routesData?: any;
@@ -305,6 +389,10 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
   dest,
   originName,
   destName,
+  pinMode = null,
+  onSetPinMode,
+  isCollapsed: propIsCollapsed,
+  onSetIsCollapsed,
   onRoutesFound,
   onMultimodalFound,
   routesData,
@@ -452,7 +540,37 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
     }
   }, [origin, dest, profile, preference]);
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = propIsCollapsed !== undefined ? propIsCollapsed : internalCollapsed;
+  const toggleCollapse = () => {
+    const next = !isCollapsed;
+    setInternalCollapsed(next);
+    if (onSetIsCollapsed) onSetIsCollapsed(next);
+  };
+
+  const handlePinOrigin = () => {
+    if (onSetPinMode) {
+      if (pinMode === 'ORIGIN') {
+        onSetPinMode(null);
+        if (onSetIsCollapsed) onSetIsCollapsed(false);
+      } else {
+        onSetPinMode('ORIGIN');
+        if (onSetIsCollapsed) onSetIsCollapsed(true);
+      }
+    }
+  };
+
+  const handlePinDest = () => {
+    if (onSetPinMode) {
+      if (pinMode === 'DEST') {
+        onSetPinMode(null);
+        if (onSetIsCollapsed) onSetIsCollapsed(false);
+      } else {
+        onSetPinMode('DEST');
+        if (onSetIsCollapsed) onSetIsCollapsed(true);
+      }
+    }
+  };
 
   return (
     <div className={`transition-all duration-300 ease-in-out pointer-events-auto z-40 flex flex-col
@@ -469,7 +587,7 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={toggleCollapse}
             className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
           >
             <span>{isCollapsed ? 'Expand ▴' : 'Minimize ▾'}</span>
@@ -485,12 +603,16 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
               onSelect={onSetOrigin} 
               value={originName || (origin ? `${origin[0].toFixed(4)}, ${origin[1].toFixed(4)}` : '')} 
               mode="ORIGIN" 
+              isPinning={pinMode === 'ORIGIN'}
+              onPinClick={handlePinOrigin}
             />
             <LocationSearch 
               placeholder="Search destination..." 
               onSelect={handleDestinationSelected} 
               value={destName || destPlace || (dest ? `${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}` : '')} 
               mode="DEST" 
+              isPinning={pinMode === 'DEST'}
+              onPinClick={handlePinDest}
             />
           </div>
 
